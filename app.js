@@ -21,6 +21,9 @@ const fmt = new Intl.NumberFormat('zh-CN');
 const memory = (bytes) => bytes >= 2 ** 30
   ? `${(bytes / 2 ** 30).toFixed(3)} GiB`
   : `${(bytes / 2 ** 20).toFixed(2)} MiB`;
+const signedMiB = new Intl.NumberFormat('zh-CN', { signDisplay: 'exceptZero', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const memoryDelta = (bytes) => `${signedMiB.format(bytes / 2 ** 20)} MiB/卡`;
+const deltaClass = (bytes) => bytes > 0 ? 'delta-up' : bytes < 0 ? 'delta-down' : 'delta-even';
 const lengths = ['4k+1k', '16k+1k', '64k+1k', '128k+1k', '1M'];
 const topology = ({ platform, dcp }) => `DP4${dcp > 1 ? ` / DCP${dcp}` : ''} / TP${platforms[platform].tp}`;
 
@@ -29,51 +32,69 @@ function describe({ recover: enabled, spec: count }) {
 }
 
 function geometryEvidence(value, config) {
-  if (config.platform === 'a3') return '公开部署模板 · 占用推算';
-  return config.dcp === 8 && value.localBlock === defaultBlock ? '页几何有历史日志' : '源码推算 · 未实测';
+  if (config.platform === 'a3') return '模板与源码复核 · 占用推算';
+  return config.dcp === 8 && value.localBlock === defaultBlock ? '页几何有启动日志 · 占用推算' : '源码推算 · 未实测';
+}
+
+function defaultConfiguration(platform) {
+  const preset = platforms[platform];
+  return { platform, dcp: preset.dcp, recover: preset.recover, spec: 3, requestedBlock: preset.defaultBlock };
 }
 
 function selectPlatform() {
   const platform = hardware.value;
   const preset = platforms[platform];
+  const defaults = defaultConfiguration(platform);
   const dcpOptions = platform === 'a5' ? [preset.dcp, 1] : [preset.dcp];
   byId('weight').replaceChildren(new Option(preset.weight));
   scenario.replaceChildren(...dcpOptions.map(dcp => new Option(topology({ platform, dcp }), dcp)));
   blockSize.replaceChildren(...preset.blockOptions.map(size => new Option(size, size)));
-  blockSize.value = String(preset.defaultBlock);
-  recover.checked = preset.recover;
+  blockSize.value = String(defaults.requestedBlock);
+  recover.checked = defaults.recover;
   draft.checked = true;
-  spec.value = '3';
+  spec.value = String(defaults.spec);
   render();
 }
 
 function render() {
   layoutColumn = 0;
   spec.disabled = !draft.checked;
+  recover.disabled = !draft.checked;
+  if (recover.disabled) recover.checked = false;
   const current = { platform: hardware.value, dcp: Number(scenario.value), recover: recover.checked,
     spec: draft.checked ? Number(spec.value) : 0, requestedBlock: Number(blockSize.value) };
   const preset = platforms[current.platform];
   byId('cache-dtypes').textContent = `D 节点 · 图模式 · 主 Attention KV / Indexer K ${preset.cacheDtype} · Draft MLA KV ${current.spec ? 'BF16' : '关闭'}`;
   const geometry = calculate(inputs[0], current);
   byId('block-size-summary').innerHTML = `<span>传入 <strong>${geometry.requestedBlock}</strong> → 生效 <strong>${geometry.localBlock}</strong> token / 卡</span><small>${geometryEvidence(geometry, current)}</small>`;
-  comparisons = [current, { ...current, recover: !current.recover }, { ...current, spec: 0 },
-    { ...current, spec: 3 }];
-  const headings = ['当前配置', `RecoverSSM ${current.recover ? '关' : '开'}`, 'DSpark 关闭', 'DSpark 3 token'];
+  comparisons = [{ config: current, label: '当前配置' }];
+  if (current.spec !== 0) {
+    comparisons.push(
+      { config: { ...current, recover: !current.recover }, label: `RecoverSSM ${current.recover ? '关' : '开'}` },
+      { config: { ...current, recover: false, spec: 0 }, label: 'DSpark 关闭' },
+    );
+  }
+  if (current.spec !== 3) comparisons.push({ config: { ...current, spec: 3 }, label: 'DSpark 3 token' });
   if (current.platform === 'a5') {
     const alternate = { ...current, dcp: current.dcp === preset.dcp ? 1 : preset.dcp };
-    comparisons.push(alternate);
-    headings.push(`${topology(alternate)}${alternate.dcp === 1 ? '（推算）' : ''}`);
+    comparisons.push({ config: alternate, label: `${topology(alternate)}${alternate.dcp === 1 ? '（推算）' : ''}` });
   }
-  byId('alternate-heading').hidden = current.platform !== 'a5';
+  const other = defaultConfiguration(current.platform === 'a3' ? 'a5' : 'a3');
+  const otherName = other.platform === 'a3' ? 'A3' : '950DT';
+  comparisons.push({ config: other, label: `${otherName} 默认`, subtitle: topology(other) });
   byId('comparison-columns').span = comparisons.length;
-  document.querySelectorAll('.config-heading:not([hidden])').forEach((heading, column) => {
-    const { bytesPerId } = calculate(inputs[0], comparisons[column]);
-    heading.innerHTML = `${headings[column]}<small>${memory(bytesPerId)} / block</small>`;
-  });
+  results.closest('table').style.setProperty('--comparison-count', comparisons.length);
+  byId('comparison-headings').innerHTML = '<th scope="col">max-model-len</th>' + comparisons.map(({ config, label, subtitle }) => {
+    const { bytesPerId } = calculate(inputs[0], config);
+    return `<th scope="col" class="config-heading">${label}${subtitle ? `<small>${subtitle}</small>` : ''}<small>${memory(bytesPerId)} / block</small></th>`;
+  }).join('');
   results.innerHTML = inputs.map((input, index) => {
-    const cells = comparisons.map((config, column) => {
-      const value = calculate(input, config);
-      return `<td><button type="button" class="value" data-row="${index}" data-column="${column}" aria-label="${lengths[index]}，${topology(config)}，${describe(config)}，${memory(value.bytes)}，查看明细">${memory(value.bytes)}<small>${value.historyIds} MLA + ${value.stateIds} KDA</small></button></td>`;
+    const values = comparisons.map(({ config }) => calculate(input, config));
+    const cells = comparisons.map(({ config, label }, column) => {
+      const value = values[column];
+      const delta = value.bytes - values[0].bytes;
+      const deltaLabel = column ? `Δ ${memoryDelta(delta)}` : '';
+      return `<td><button type="button" class="value" data-row="${index}" data-column="${column}" aria-label="${lengths[index]}，${label}，${describe(config)}，${memory(value.bytes)}${column ? `，${deltaLabel}` : ''}，查看明细">${memory(value.bytes)}<small>${value.historyIds} MLA + ${value.stateIds} KDA</small>${column ? `<small class="${deltaClass(delta)}">${deltaLabel}</small>` : ''}</button></td>`;
     }).join('');
     return `<tr><th scope="row"><button type="button" class="length" data-row="${index}" aria-pressed="${index === selected}">${lengths[index]}</button></th>${cells}</tr>`;
   }).join('');
@@ -81,7 +102,7 @@ function render() {
 }
 
 function renderLayout() {
-  const current = comparisons[layoutColumn];
+  const { config: current, label } = comparisons[layoutColumn];
   const value = calculate(inputs[selected], current);
   const groups = Array.from({ length: stateGroups }, (_, index) => index);
   const { pages, regions } = value;
@@ -96,11 +117,11 @@ function renderLayout() {
       ? '<td class="empty">空槽</td>' : `<td class="kda">KDA ${slot * 4 + group}</td>`).join('')}</tr>`;
   });
   const sideRow = (name, layers, kind, text) => `<tr><th scope="row">${name} 区 × ${layers} 层</th><td class="${kind}">${text}</td>${groups.map(() => '<td class="empty">预留空页</td>').join('')}</tr>`;
-  byId('layout-caption').textContent = `${lengths[selected]} · ${topology(current)} · ${describe(current)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, current)}`;
+  byId('layout-caption').textContent = `${lengths[selected]} · ${label} · ${topology(current)} · ${describe(current)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, current)}`;
   layout.innerHTML = `
     <div class="flow">
-      <div><small>MLA 历史 blocks</small><strong>${value.historyIds} 个</strong><small>⌈(${fmt.format(value.limit)} + ${current.spec}) ÷ ${fmt.format(value.coverage)}⌉</small></div>
-      <div><small>KDA 状态 blocks</small><strong>3 组 × ${value.stateCopies} 个</strong><small>每组 23 层，持有各自的 ID</small></div>
+      <div><small>MLA 历史 blocks</small><strong>${value.historyIds} 个</strong><small>⌈${fmt.format(value.limit)} ÷ ${fmt.format(value.coverage)}⌉</small></div>
+      <div><small>KDA 状态 blocks · 规划</small><strong>3 组 × ${value.stateCopies} 个</strong><small>每组 23 层，持有各自的 ID</small></div>
       <div><small>一个逻辑 block 的显存 / 卡</small><strong>${memory(value.bytesPerId)}</strong><small>${fmt.format(value.bytesPerId)} B</small></div>
       <div><small>请求合计 / 卡</small><strong>${memory(value.bytes)}</strong><small>(${value.historyIds} + ${value.stateIds}) × 单 block 显存</small></div>
     </div>
@@ -121,7 +142,7 @@ function renderLayout() {
       <tr><th scope="row">Indexer</th><td>${mainLayers} × ${fmt.format(pages.index)} B</td><td>${memory(regions.index)}</td></tr>
       <tr><th scope="row">Draft</th><td>${current.spec ? draftLayers : 0} × ${fmt.format(pages.draft)} B</td><td>${memory(regions.draft)}</td></tr>
     </tbody></table></div>
-    <p class="caption">上下文变长时，MLA 历史块数按逻辑覆盖取整。KDA 每组采用固定块数预算，按 2 个基础块的规划上界，RecoverSSM 关闭时再加 numspec 个。关闭 DSpark 会去掉每个池 ID 的 Draft 区。DCP 切换改变历史 ID 的 token 覆盖。</p>`;
+    <p class="caption">MLA 历史块数按逻辑覆盖取整，投机预留受本档 <code>max-model-len</code> 限制。KDA 每组按 2 个基础块做规划，RecoverSSM 关闭时再加 <code>numspec</code> 个。关闭 DSpark 同时关闭 RecoverSSM，并移除每个池 ID 的 Draft 区。</p>`;
 }
 
 function renderBlockZoom({ coverage, pages, localBlock, requestedBlock, upstreamQuantumBytes, alignmentMultiple }, dcp) {
@@ -183,11 +204,19 @@ layout.addEventListener('click', (event) => {
 });
 
 function openDetail(row, column) {
-  const config = comparisons[column];
+  const { config, label } = comparisons[column];
   const value = calculate(inputs[row], config);
   byId('detail-title').textContent = `${memory(value.bytes)} / 卡`;
-  byId('detail-caption').textContent = `${lengths[row]} · ${topology(config)} · ${describe(config)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, config)}`;
-  byId('detail-rows').innerHTML = `<p class="caption">历史 ID = ⌈(${fmt.format(value.limit)} + ${config.spec}) / ${fmt.format(value.coverage)}⌉ = ${value.historyIds}。KDA = 3 组 × ${value.stateCopies} 份 = ${value.stateIds} ID。每个 ID 占 ${memory(value.bytesPerId)} / 卡。</p>${value.rows.map((entry) => `<details class="breakdown"><summary><span>${entry.name}</span><strong>${memory(entry.bytes)}</strong></summary><p>${entry.shape}</p><p><code>${entry.formula} = ${fmt.format(entry.bytes)} B</code></p><p class="tags">${entry.tags.map((tag) => `<span>${tag}</span>`).join('')}</p></details>`).join('')}`;
+  byId('detail-caption').textContent = `${lengths[row]} · ${label} · ${topology(config)} · ${describe(config)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, config)}`;
+  let difference = '';
+  if (column) {
+    const baseline = calculate(inputs[row], comparisons[0].config);
+    const blockCount = value.historyIds + value.stateIds;
+    const countCost = (blockCount - baseline.historyIds - baseline.stateIds) * baseline.bytesPerId;
+    const priceCost = (value.bytesPerId - baseline.bytesPerId) * blockCount;
+    difference = `<p class="caption">相对当前配置 <strong class="${deltaClass(value.bytes - baseline.bytes)}">${memoryDelta(value.bytes - baseline.bytes)}</strong>。块数差按基准单价计 ${memoryDelta(countCost)}，单价差按对照块数计 ${memoryDelta(priceCost)}。</p>`;
+  }
+  byId('detail-rows').innerHTML = `${difference}<p class="caption">历史 ID = ⌈${fmt.format(value.limit)} / ${fmt.format(value.coverage)}⌉ = ${value.historyIds}。投机预留受本档 <code>max-model-len</code> 截断。KDA 规划 = 3 组 × ${value.stateCopies} 份 = ${value.stateIds} ID。每个 ID 占 ${memory(value.bytesPerId)} / 卡。</p>${value.rows.map((entry) => `<details class="breakdown"><summary><span>${entry.name}</span><strong>${memory(entry.bytes)}</strong></summary><p>${entry.shape}</p><p><code>${entry.formula} = ${fmt.format(entry.bytes)} B</code></p><p class="tags">${entry.tags.map((tag) => `<span>${tag}</span>`).join('')}</p></details>`).join('')}`;
   detail.showModal();
 }
 

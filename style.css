@@ -162,7 +162,7 @@ thead th {
 }
 
 .comparison-table {
-  min-width: 50rem;
+  min-width: calc(7rem + var(--comparison-count, 5) * 8.6rem);
   table-layout: fixed;
 }
 
@@ -352,6 +352,14 @@ dialog::backdrop {
   font-size: .78rem;
   font-weight: 400;
   margin-top: .2rem;
+}
+
+.value .delta-up, .delta-up {
+  color: #ffc091;
+}
+
+.value .delta-down, .delta-down {
+  color: #81dfbe;
 }
 
 .flow strong {

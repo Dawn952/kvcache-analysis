@@ -26,6 +26,7 @@
       throw new RangeError('不支持此机型和 DCP 组合');
     }
     if (!Number.isInteger(spec) || spec < 0 || spec > 7) throw new RangeError('numspec 须为 0 至 7 的整数');
+    if (recover && spec === 0) throw new RangeError('RecoverSSM 需要开启 DSpark');
     if (!preset.blockOptions.includes(requestedBlock)) throw new RangeError('不支持此 block-size 档位');
 
     const heads = 96 / preset.tp;
@@ -39,7 +40,9 @@
     const localBlock = requestedBlock * alignmentMultiple;
     const limit = input + Ki;
     const coverage = localBlock * dcp;
-    const historyIds = Math.ceil((limit + spec) / coverage);
+    // Each row sets the engine max_model_len to input + output. allocate_slots
+    // caps main tokens plus lookahead at that limit before full-attention paging.
+    const historyIds = Math.ceil(limit / coverage);
     const stateCopies = 2 + (recover ? 0 : spec);
     const stateIds = stateCopies * stateGroups;
     const mainPage = localBlock * packedMlaTokenBytes;
