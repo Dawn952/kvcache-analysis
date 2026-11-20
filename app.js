@@ -142,7 +142,7 @@ function renderLayout() {
 function openLayoutVisual() {
   if (layoutVisual.open) return;
   const value = calculate(inputs[selected], current);
-  const { historyIds, stateCopies, pages } = value;
+  const { historyIds, stateCopies, pages, limit, coverage, localBlock } = value;
   const pools = [{ label: 'MLA 历史', count: historyIds, start: 0 }];
   for (let group = 0; group < stateGroups; group++) {
     pools.push({ label: `KDA 第 ${group + 1} 组`, count: stateCopies, start: historyIds + group * stateCopies });
@@ -154,23 +154,23 @@ function openLayoutVisual() {
   if (pages.draft) regions.push({ label: 'Draft', kind: 'draft', bytes: pages.draft, layers: draftLayers });
 
   const strip = (pool, kind, label) => `<div class="visual-block-group"><small>${label}</small>
-    <div class="visual-block-strip" role="img" aria-label="${label}，${pool.count} 块，编号 ${pool.start} 至 ${pool.start + pool.count - 1}${kind === 'kda' ? `，1 个运行状态块${pool.count > 1 ? `，${pool.count - 1} 个投机状态块` : ''}` : ''}">
+    <div class="visual-block-strip" role="img" aria-label="${label}，${pool.count} 个 block，编号 ${pool.start} 至 ${pool.start + pool.count - 1}${kind === 'kda' ? `，1 个运行状态 block${pool.count > 1 ? `，${pool.count - 1} 个投机状态 block` : ''}` : ''}">
     ${Array.from({ length: pool.count }, (_, index) => {
       const id = pool.start + index;
       const usage = kind === 'kda' ? (index ? '投机状态' : '运行状态') : label;
       const scratch = kind === 'kda' && index ? ' speculative' : '';
-      return `<span class="visual-block ${kind}${scratch}" title="块 ${id} · ${usage}" aria-hidden="true">${id}</span>`;
+      return `<span class="visual-block ${kind}${scratch}" title="block ${id} · ${usage}" aria-hidden="true">${id}</span>`;
     }).join('')}</div></div>`;
 
   byId('layout-visual-content').innerHTML = `
-    <p class="caption">${lengths[selected]} · ${topology(current)} · ${describe(current)} · ${value.localBlock} token / 卡</p>
-    <p id="visual-block-guide" class="caption">每个方格是一块。各区域各画前两行，同一列使用相同的块编号。编号为本图示意，按缓存组排列。斜纹表示为该编号预留的空页。</p>
-    <div class="visual-block-nav" role="group" aria-label="跳到缓存组">${pools.map((pool, group) => `<button type="button" data-block-group="${group}">${pool.label} <span>· ${pool.count} 块</span></button>`).join('')}</div>
-    <div class="scroll visual-block-scroll" tabindex="0" role="region" aria-label="缓存块图，可横向滚动">
+    <p class="caption">${lengths[selected]} · ${topology(current)} · ${describe(current)} · ${fmt.format(localBlock)} token / 卡</p>
+    <p id="visual-block-guide" class="caption">以第 ${mlaLayer(0)} 层 MLA 为例，每个覆盖 <strong>${fmt.format(coverage)} token</strong> 的逻辑 block 对应本卡 <strong>1 个池 block</strong>（图中一格）。本请求的 MLA 历史共占 <strong>${historyIds} 个 block</strong>。</p>
+    <div class="visual-block-nav" role="group" aria-label="跳到缓存组">${pools.map((pool, group) => `<button type="button" data-block-group="${group}">${pool.label} <span>· ${pool.count} 个 block</span></button>`).join('')}</div>
+    <div class="scroll visual-block-scroll" tabindex="0" role="region" aria-label="缓存 block 图，可横向滚动">
       <table class="visual-block-map" aria-describedby="visual-block-guide">
-        <thead><tr><th scope="col">存储行（L）</th>${pools.map((pool) => `<th scope="col">${pool.label}<small>${pool.count} 块</small></th>`).join('')}</tr></thead>
+        <thead><tr><th scope="col">存储行（L）</th>${pools.map((pool) => `<th scope="col">${pool.label}<small>${pool.count} 个 block</small></th>`).join('')}</tr></thead>
         ${regions.map((region) => `<tbody>${[0, 1].map((slot) => `<tr>
-          <th scope="row">${region.label} · 行 ${slot}<small>共 ${region.layers} 行 · ${fmt.format(region.bytes)} B / 块</small></th>
+          <th scope="row">${region.label} · 行 ${slot}<small>共 ${region.layers} 行 · ${fmt.format(region.bytes)} 字节 / block</small></th>
           <td>${strip(pools[0], region.kind, region.kind === 'draft' ? 'Draft MLA KV' : `模型第 ${mlaLayer(slot)} 层`)}</td>
           ${pools.slice(1).map((pool, group) => `<td>${region.kind === 'mla'
             ? strip(pool, 'kda', `模型第 ${kdaLayer(slot, group)} 层`)
@@ -178,9 +178,15 @@ function openLayoutVisual() {
         </tr>`).join('')}</tbody>`).join('')}
       </table>
     </div>
-    ${stateCopies > 1 ? '<p class="caption">KDA 每组首块保存运行状态，虚线边框标出投机状态块。</p>' : ''}
+    <p class="caption">各区域只画前两行。编号为示意，斜纹是预留空页。${stateCopies > 1 ? 'KDA 中的虚线格表示投机状态。' : ''}</p>
     ${pages.draft ? '' : '<p class="caption">DSpark 已关闭，当前配置没有 Draft 区。</p>'}
-    <details class="visual-block-detail"><summary>查看 MLA 与 KDA 单块内部的字节比例</summary>${renderBlockZoom(value, current.dcp)}</details>`;
+    <details class="visual-block-detail">
+      <summary>block 数量和排布是怎么算的？</summary>
+      <p class="caption"><strong>MLA 申请数。</strong> 当前请求的 ${fmt.format(limit)} token ÷ 每个逻辑 block 覆盖的 ${fmt.format(coverage)} token，向上取整得到 ${historyIds} 个。MLA 缓存组申请这批 block ID，各 MLA 层共用这批编号，每层在本卡为每个 ID 存 ${fmt.format(localBlock)} token。</p>
+      <p class="caption"><strong>为什么一行有 MLA 和 KDA？</strong> Main 区的行号是物理存储位置。第 0 行中，第 ${mlaLayer(0)} 层的 MLA 和第 0、1、2 层的 KDA 共用同一行，分别使用各自的 block ID。</p>
+      <p class="caption"><strong>连续排布。</strong> Main 区按 <code>L → B → N → H → C</code> 排布。固定存储行 L 后，整池的 block 按实际 block ID（B）递增连续存放，步长是 ${fmt.format(pages.main)} 字节。同一请求分到的 ID 可以不相邻。</p>
+    </details>
+    <details class="visual-block-detail"><summary>查看 MLA 与 KDA 单个 block 内部的字节比例</summary>${renderBlockZoom(value, current.dcp)}</details>`;
   layoutVisual.scrollTop = 0;
   layoutVisual.showModal();
 }
