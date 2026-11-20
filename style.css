@@ -162,16 +162,12 @@ thead th {
 }
 
 .comparison-table {
-  min-width: 62rem;
+  min-width: 50rem;
   table-layout: fixed;
 }
 
 .comparison-table .length-col {
-  width: 9%;
-}
-
-.comparison-table .limit-col {
-  width: 12%;
+  width: 14%;
 }
 
 .comparison-table th, .comparison-table td {

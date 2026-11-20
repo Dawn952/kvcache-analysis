@@ -1,6 +1,6 @@
 'use strict';
 
-const { inputs, Ki, defaultBlock, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup, draftLayers, calculate } = KVCache;
+const { inputs, defaultBlock, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup, draftLayers, calculate } = KVCache;
 const byId = (id) => document.getElementById(id);
 const scenario = byId('scenario');
 const recover = byId('recover');
@@ -20,7 +20,7 @@ const fmt = new Intl.NumberFormat('zh-CN');
 const memory = (bytes) => bytes >= 2 ** 30
   ? `${(bytes / 2 ** 30).toFixed(3)} GiB`
   : `${(bytes / 2 ** 20).toFixed(2)} MiB`;
-const lengths = ['4k', '16k', '64k', '128k', '1M − 1k'];
+const lengths = ['4k+1k', '16k+1k', '64k+1k', '128k+1k', '1M'];
 const topology = (dcp) => dcp === 8 ? 'DP4 / DCP8 / TP8' : 'DP4 / TP8';
 
 function describe({ recover: enabled, spec: count }) {
@@ -52,7 +52,7 @@ function render() {
       const value = calculate(input, config);
       return `<td><button type="button" class="value" data-row="${index}" data-column="${column}" aria-label="${lengths[index]}，${topology(config.dcp)}，${describe(config)}，${memory(value.bytes)}，查看明细">${memory(value.bytes)}<small>${value.historyIds} MLA + ${value.stateIds} KDA</small></button></td>`;
     }).join('');
-    return `<tr><th scope="row"><button type="button" class="length" data-row="${index}" aria-pressed="${index === selected}">${lengths[index]}</button></th><td>1k</td><td>${fmt.format(input + Ki)}</td>${cells}</tr>`;
+    return `<tr><th scope="row"><button type="button" class="length" data-row="${index}" aria-pressed="${index === selected}">${lengths[index]}</button></th>${cells}</tr>`;
   }).join('');
   renderLayout();
 }
@@ -73,7 +73,7 @@ function renderLayout() {
       ? '<td class="empty">空槽</td>' : `<td class="kda">KDA ${slot * 4 + group}</td>`).join('')}</tr>`;
   });
   const sideRow = (name, layers, kind, text) => `<tr><th scope="row">${name} 区 × ${layers} 层</th><td class="${kind}">${text}</td>${groups.map(() => '<td class="empty">预留空页</td>').join('')}</tr>`;
-  byId('layout-caption').textContent = `${lengths[selected]} + 1k · ${topology(current.dcp)} · ${describe(current)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, current.dcp)}`;
+  byId('layout-caption').textContent = `${lengths[selected]} · ${topology(current.dcp)} · ${describe(current)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, current.dcp)}`;
   layout.innerHTML = `
     <div class="flow">
       <div><small>MLA 历史 blocks</small><strong>${value.historyIds} 个</strong><small>⌈(${fmt.format(value.limit)} + ${current.spec}) ÷ ${fmt.format(value.coverage)}⌉</small></div>
@@ -163,7 +163,7 @@ function openDetail(row, column) {
   const config = comparisons[column];
   const value = calculate(inputs[row], config);
   byId('detail-title').textContent = `${memory(value.bytes)} / 卡`;
-  byId('detail-caption').textContent = `${lengths[row]} + 1k · ${topology(config.dcp)} · ${describe(config)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, config.dcp)}`;
+  byId('detail-caption').textContent = `${lengths[row]} · ${topology(config.dcp)} · ${describe(config)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, config.dcp)}`;
   byId('detail-rows').innerHTML = `<p class="caption">历史 ID = ⌈(${fmt.format(value.limit)} + ${config.spec}) / ${fmt.format(value.coverage)}⌉ = ${value.historyIds}。KDA = 3 组 × ${value.stateCopies} 份 = ${value.stateIds} ID。每个 ID 占 ${memory(value.bytesPerId)} / 卡。</p>${value.rows.map((entry) => `<details class="breakdown"><summary><span>${entry.name}</span><strong>${memory(entry.bytes)}</strong></summary><p>${entry.shape}</p><p><code>${entry.formula} = ${fmt.format(entry.bytes)} B</code></p><p class="tags">${entry.tags.map((tag) => `<span>${tag}</span>`).join('')}</p></details>`).join('')}`;
   detail.showModal();
 }

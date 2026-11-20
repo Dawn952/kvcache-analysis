@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KVCache 对比台</title>
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 <main>
   <header>
     <p class="eyebrow">vLLM ASCEND / DECODE</p>
@@ -34,8 +34,8 @@
     <h2 id="results-title">单卡占用对比</h2>
     <p class="caption">生成预算用满时的 block 分配估算。八卡按同一值展示。每列只改动列名所示配置。</p>
     <div class="scroll"><table class="comparison-table">
-      <colgroup><col class="length-col"><col class="length-col"><col class="limit-col"><col span="5"></colgroup>
-      <thead><tr><th scope="col">输入长度</th><th scope="col">生成预算</th><th scope="col">max_model_len</th><th scope="col" class="config-heading">当前配置</th><th scope="col" class="config-heading">RecoverSSM 关</th><th scope="col" class="config-heading">DSpark 关闭</th><th scope="col" class="config-heading">DSpark 3 token</th><th scope="col" class="config-heading">DP4 / TP8</th></tr></thead>
+      <colgroup><col class="length-col"><col span="5"></colgroup>
+      <thead><tr><th scope="col">max-model-len</th><th scope="col" class="config-heading">当前配置</th><th scope="col" class="config-heading">RecoverSSM 关</th><th scope="col" class="config-heading">DSpark 关闭</th><th scope="col" class="config-heading">DSpark 3 token</th><th scope="col" class="config-heading">DP4 / TP8</th></tr></thead>
       <tbody id="results"></tbody>
     </table></div>
     <p class="caption"><a href="#cache-layout">查看选中档位的布局</a></p>
@@ -50,7 +50,7 @@
       <p><strong>地址顺序。</strong> L 是物理层槽，B 是池内 block ID，N 是本卡页内 token，H 是存储的 KV head，C 是打包后的通道。Main 区同一层槽内的 block 连续，<code>offset(L,B) = L × 池总 block 数 × 主 MLA 页字节 + B × 主 MLA 页字节</code>。这里展示的是当前请求占用的 ID。分配器用整个池的 block 数计算 L 轴步长。</p>
       <p><strong>页与 ID。</strong> KDA 沿用 MLA 页的步长。三组 KDA 各自有 block table，使用互斥的池 ID，同一组的 23 层使用相同的一串 ID。Indexer 和 draft 有独立的物理区域及页宽，也按池 ID 寻址。</p>
       <p><strong>先选 token 块，再算物理页。</strong> 当前四个传入值都满足这套配置的 kernel 和 checkpoint 粒度。固定版 vLLM 按每 token 576 B 把 MLA 块向上取整到能容纳一份 KDA 状态，再由 Ascend 按每 token 656 B 计算打包后的 MLA 页宽和 KDA padding。DCP 逻辑覆盖等于生效 block size × DCP。KDA 的 96 个头按 TP8 切成每卡 12 个。</p>
-      <p>模型按独享请求、无前缀复用计算。投机预留用于计算页数。<code>max_model_len</code> 列仍是输入与可生成预算之和。全池 null ID、模型权重、图内存和按引擎槽数分配的 RecoverSSM records 独立于该请求的 block 计费。</p>
+      <p>模型按独享请求、无前缀复用计算。投机预留用于计算页数。<code>max-model-len</code> 是输入与生成预算之和，<code>1M</code> 档使用 <code>(1M−1k)+1k</code>。全池 null ID、模型权重、图内存和按引擎槽数分配的 RecoverSSM records 独立于该请求的 block 计费。</p>
       <p>历史 DCP8 部署传入 768，启动后生效为 1536。本站默认直接传入 1536。其他页几何及无 DCP 场景按源码推算。实际 DCP8 启动还需校验 <code>cp_kv_cache_interleave_size</code>。两份基础状态页采用容量规划上界。</p>
       <p class="sources"><a href="https://dawn952.github.io/kimi-k31-a5-analysis/">A5 Atlas</a><a href="https://github.com/vllm-project/vllm/blob/4ba787ec9959e566d3b587a796dff07673324da5/vllm/platforms/interface.py#L1066-L1128">vLLM 选块</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/platform.py#L456-L489">Ascend 页对齐</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/models/kimi_k3/paired_sfa_cache.py">物理页和步长</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/attention/sfa_v1.py#L412-L414">SFA kernel 小块</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/models/kimi_k3/cache_config.py">KDA 分组源码</a><a href="https://github.com/vllm-project/vllm-ascend/pull/21549">RecoverSSM</a></p>
     </details>
@@ -61,5 +61,5 @@
   <div id="detail-rows"></div>
 </dialog>
 <script src="model.js?v=6" defer></script>
-<script src="app.js?v=7" defer></script>
+<script src="app.js?v=8" defer></script>
 </html>
