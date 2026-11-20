@@ -3,7 +3,11 @@
 
   const Ki = 1024;
   const inputs = [4 * Ki, 16 * Ki, 64 * Ki, 128 * Ki, Ki * Ki - Ki];
-  const localBlock = 1536;
+  const defaultBlock = 1536;
+  const blockOptions = [640, 1024, 1408, defaultBlock];
+  const mlaKernelBlock = 128;
+  const upstreamMlaTokenBytes = 576;
+  const packedMlaTokenBytes = 656;
   const mainLayers = 24;
   const stateLayers = 69;
   const stateGroups = 3;
@@ -12,25 +16,32 @@
   const heads = 12;
   const dim = 128;
 
-  function calculate(input, { dcp, recover, spec }) {
+  function calculate(input, { dcp, recover, spec, requestedBlock = defaultBlock }) {
     if (![1, 8].includes(dcp) || !Number.isInteger(spec) || spec < 0 || spec > 7) {
       throw new RangeError('DCP 须为 1 或 8，numspec 须为 0 至 7 的整数');
     }
+    if (!blockOptions.includes(requestedBlock)) throw new RangeError('不支持此 block-size 档位');
+
+    const recurrent = heads * dim * dim * 4;
+    const conv = (3 + spec) * 3 * heads * dim * 2;
+    const state = recurrent + conv;
+    // These presets are multiples of the 128-token backend block and the KDA checkpoint alignment.
+    // Upstream sizes the manager block first. Ascend then uses the packed MLA width for its page stride.
+    const upstreamQuantumBytes = requestedBlock * upstreamMlaTokenBytes;
+    const alignmentMultiple = Math.ceil(state / upstreamQuantumBytes);
+    const localBlock = requestedBlock * alignmentMultiple;
     const limit = input + Ki;
     const coverage = localBlock * dcp;
     const historyIds = Math.ceil((limit + spec) / coverage);
     const stateCopies = 2 + (recover ? 0 : spec);
     const stateIds = stateCopies * stateGroups;
-    const mainPage = localBlock * 656;
+    const mainPage = localBlock * packedMlaTokenBytes;
     const indexPage = localBlock * 132;
     const draftPage = spec ? localBlock * 1152 : 0;
     const mainRegion = mainLayers * mainPage;
     const indexRegion = mainLayers * indexPage;
     const draftRegion = draftLayers * draftPage;
     const bytesPerId = mainRegion + indexRegion + draftRegion;
-    const recurrent = heads * dim * dim * 4;
-    const conv = (3 + spec) * 3 * heads * dim * 2;
-    const state = recurrent + conv;
     const rows = [
       { name: '主模型 Attention KV', bytes: historyIds * mainRegion,
         shape: '512 × FP8 + 64 × BF16 + 4 × FP32 scale = 656 B / token / 层',
@@ -58,10 +69,11 @@
     if (rows.reduce((sum, row) => sum + row.bytes, 0) !== bytes) throw new Error('分项与整页计费不一致');
     const pages = { main: mainPage, index: indexPage, draft: draftPage, conv, recurrent, state, padding: mainPage - state };
     const regions = { main: mainRegion, index: indexRegion, draft: draftRegion };
-    return { input, limit, coverage, historyIds, stateCopies, stateIds, bytesPerId, pages, regions, rows, bytes };
+    return { input, limit, coverage, historyIds, stateCopies, stateIds, bytesPerId, pages, regions, rows, bytes,
+      requestedBlock, localBlock, upstreamQuantumBytes, alignmentMultiple };
   }
 
-  const model = { Ki, inputs, localBlock, mainLayers, stateGroups, layersPerStateGroup, draftLayers, calculate };
+  const model = { Ki, inputs, defaultBlock, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup, draftLayers, calculate };
   if (typeof module !== 'undefined') module.exports = model;
   else root.KVCache = model;
 })(globalThis);

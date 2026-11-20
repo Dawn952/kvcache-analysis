@@ -1,11 +1,12 @@
 'use strict';
 
-const { inputs, Ki, localBlock, mainLayers, stateGroups, layersPerStateGroup, draftLayers, calculate } = KVCache;
+const { inputs, Ki, defaultBlock, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup, draftLayers, calculate } = KVCache;
 const byId = (id) => document.getElementById(id);
 const scenario = byId('scenario');
 const recover = byId('recover');
 const draft = byId('draft');
 const spec = byId('spec');
+const blockSize = byId('block-size');
 const results = byId('results');
 const layout = byId('layout');
 const detail = byId('detail');
@@ -21,16 +22,22 @@ const memory = (bytes) => bytes >= 2 ** 30
   : `${(bytes / 2 ** 20).toFixed(2)} MiB`;
 const lengths = ['4k', '16k', '64k', '128k', '1M − 1k'];
 const topology = (dcp) => dcp === 8 ? 'DP4 / DCP8 / TP8' : 'DP4 / TP8';
-const mlaKernelBlock = 128;
 
 function describe({ recover: enabled, spec: count }) {
   return `RecoverSSM ${enabled ? '开' : '关'} · DSpark ${count ? `${count} token` : '关'}`;
 }
 
+function geometryEvidence(value, dcp) {
+  return dcp === 8 && value.localBlock === defaultBlock ? '页几何有历史日志' : '源码推算 · 未实测';
+}
+
 function render() {
   layoutColumn = 0;
   spec.disabled = !draft.checked;
-  const current = { dcp: Number(scenario.value), recover: recover.checked, spec: draft.checked ? Number(spec.value) : 0 };
+  const current = { dcp: Number(scenario.value), recover: recover.checked,
+    spec: draft.checked ? Number(spec.value) : 0, requestedBlock: Number(blockSize.value) };
+  const geometry = calculate(inputs[0], current);
+  byId('block-size-summary').innerHTML = `<span>传入 <strong>${geometry.requestedBlock}</strong> → 生效 <strong>${geometry.localBlock}</strong> token / 卡</span><small>${geometryEvidence(geometry, current.dcp)}</small>`;
   const alternateDcp = current.dcp === 8 ? 1 : 8;
   comparisons = [current, { ...current, recover: !current.recover }, { ...current, spec: 0 },
     { ...current, spec: 3 }, { ...current, dcp: alternateDcp }];
@@ -46,9 +53,9 @@ function render() {
     }).join('');
     return `<tr><th scope="row"><button type="button" class="length" data-row="${index}" aria-pressed="${index === selected}">${lengths[index]}</button></th><td>1k</td><td>${fmt.format(input + Ki)}</td>${cells}</tr>`;
   }).join('');
-  byId('scenario-note').textContent = current.dcp === 8
-    ? 'DCP8 使用 A5 Atlas 历史布局。DP4 / TP8 对照按 DCP=1 推算，待部署验证。'
-    : 'DP4 / TP8 使用 DCP=1，沿用同一本地页几何作对照，待部署验证。';
+  byId('scenario-note').textContent = geometry.localBlock === defaultBlock
+    ? 'DCP8 的 1536-token 页几何来自历史启动（当时传入 768）。DP4 / TP8 按 DCP=1 推算。'
+    : '该页几何按源码推算，尚无部署实测。DCP8 启动还需校验 cp_kv_cache_interleave_size。';
   renderLayout();
 }
 
@@ -68,7 +75,7 @@ function renderLayout() {
       ? '<td class="empty">空槽</td>' : `<td class="kda">KDA ${slot * 4 + group}</td>`).join('')}</tr>`;
   });
   const sideRow = (name, layers, kind, text) => `<tr><th scope="row">${name} 区 × ${layers} 层</th><td class="${kind}">${text}</td>${groups.map(() => '<td class="empty">预留空页</td>').join('')}</tr>`;
-  byId('layout-caption').textContent = `${lengths[selected]} + 1k · ${topology(current.dcp)} · ${describe(current)}`;
+  byId('layout-caption').textContent = `${lengths[selected]} + 1k · ${topology(current.dcp)} · ${describe(current)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, current.dcp)}`;
   layout.innerHTML = `
     <div class="flow">
       <div><small>MLA 历史 blocks</small><strong>${value.historyIds} 个</strong><small>⌈(${fmt.format(value.limit)} + ${current.spec}) ÷ ${fmt.format(value.coverage)}⌉</small></div>
@@ -96,7 +103,7 @@ function renderLayout() {
     <p class="caption">上下文变长时，MLA 历史块数按逻辑覆盖取整。KDA 每组采用固定块数预算，按 2 个基础块的规划上界，RecoverSSM 关闭时再加 numspec 个。关闭 DSpark 会去掉每个池 ID 的 Draft 区。DCP 切换改变历史 ID 的 token 覆盖。</p>`;
 }
 
-function renderBlockZoom({ coverage, pages }, dcp) {
+function renderBlockZoom({ coverage, pages, localBlock, requestedBlock, upstreamQuantumBytes, alignmentMultiple }, dcp) {
   const tiles = localBlock / mlaKernelBlock;
   const tileBytes = pages.main / tiles;
   const mlaParts = Array.from({ length: tiles }, (_, index) => ({
@@ -120,6 +127,7 @@ function renderBlockZoom({ coverage, pages }, dcp) {
   };
   return `<div class="block-zoom">
     <div><strong>调度逻辑大块 · ${fmt.format(coverage)} token</strong><span>${dcp} 卡 × ${fmt.format(localBlock)} token / 卡</span></div>
+    <p class="caption">先选块：${requestedBlock} × ⌈${fmt.format(pages.state)} B ÷ ${fmt.format(upstreamQuantumBytes)} B⌉ = ${requestedBlock} × ${alignmentMultiple} = ${localBlock} token。再按打包后的 MLA 页计算字节宽度。</p>
     <div class="byte-scale" aria-label="单卡物理页内字节偏移"><span>0 B</span><span>${fmt.format(pages.main)} B</span></div>
     <div class="byte-label"><strong>MLA 物理页</strong><span>${tiles} 小块 × ${mlaKernelBlock} token，每小块 ${fmt.format(tileBytes)} B</span></div>
     ${track('MLA 物理页', mlaParts)}
@@ -157,7 +165,7 @@ function openDetail(row, column) {
   const config = comparisons[column];
   const value = calculate(inputs[row], config);
   byId('detail-title').textContent = `${memory(value.bytes)} / 卡`;
-  byId('detail-caption').textContent = `${lengths[row]} + 1k · ${topology(config.dcp)} · ${describe(config)}`;
+  byId('detail-caption').textContent = `${lengths[row]} + 1k · ${topology(config.dcp)} · ${describe(config)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, config.dcp)}`;
   byId('detail-rows').innerHTML = `<p class="caption">历史 ID = ⌈(${fmt.format(value.limit)} + ${config.spec}) / ${fmt.format(value.coverage)}⌉ = ${value.historyIds}。KDA = 3 组 × ${value.stateCopies} 份 = ${value.stateIds} ID。每个 ID 占 ${memory(value.bytesPerId)} / 卡。</p>${value.rows.map((entry) => `<details class="breakdown"><summary><span>${entry.name}</span><strong>${memory(entry.bytes)}</strong></summary><p>${entry.shape}</p><p><code>${entry.formula} = ${fmt.format(entry.bytes)} B</code></p><p class="tags">${entry.tags.map((tag) => `<span>${tag}</span>`).join('')}</p></details>`).join('')}`;
   detail.showModal();
 }
@@ -174,12 +182,13 @@ results.addEventListener('click', (event) => {
   if (button.dataset.column !== undefined) openDetail(selected, Number(button.dataset.column));
 });
 
-for (const control of [scenario, recover, draft, spec]) control.addEventListener('change', render);
+for (const control of [scenario, recover, draft, spec, blockSize]) control.addEventListener('change', render);
 byId('reset').addEventListener('click', () => {
   scenario.value = '8';
   recover.checked = true;
   draft.checked = true;
   spec.value = '3';
+  blockSize.value = String(defaultBlock);
   selected = 3;
   render();
 });

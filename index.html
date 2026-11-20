@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KVCache 对比台</title>
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=6">
 <main>
   <header>
     <p class="eyebrow">vLLM ASCEND / DECODE</p>
@@ -23,8 +23,10 @@
       <label><input type="checkbox" id="recover" checked> RecoverSSM</label>
       <label><input type="checkbox" id="draft" checked> DSpark</label>
       <label for="spec">numspec <select id="spec"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></label>
+      <label for="block-size"><code>--block-size</code> <select id="block-size"><option>640</option><option>1024</option><option>1408</option><option selected>1536</option></select></label>
       <button id="reset" type="button">恢复默认</button>
     </div>
+    <p id="block-size-summary" class="block-size-summary" aria-live="polite"></p>
     <p class="caption">D 节点 · 图模式 · 主 Attention KV / Indexer K FP8 · Draft MLA KV BF16</p>
   </section>
 
@@ -46,10 +48,10 @@
       <summary>对齐原理与计算口径</summary>
       <p><strong>地址顺序。</strong> L 是物理层槽，B 是池内 block ID，N 是本卡页内 token，H 是存储的 KV head，C 是打包后的通道。Main 区同一层槽内的 block 连续，<code>offset(L,B) = L × 池总 block 数 × 主 MLA 页字节 + B × 主 MLA 页字节</code>。这里展示的是当前请求占用的 ID。分配器用整个池的 block 数计算 L 轴步长。</p>
       <p><strong>页与 ID。</strong> KDA 沿用 MLA 页的步长。三组 KDA 各自有 block table，使用互斥的池 ID，同一组的 23 层使用相同的一串 ID。Indexer 和 draft 有独立的物理区域及页宽，也按池 ID 寻址。</p>
-      <p><strong>本地页与逻辑覆盖。</strong> 历史部署 CLI block size 为 768，有效本地 block size 为 1536。DCP8 下一个 MLA 历史 ID 覆盖 12288 个全局 token。KDA 的 96 个头按 TP8 切成每卡 12 个，状态数组沿用各自的形状。</p>
+      <p><strong>先选 token 块，再算物理页。</strong> 当前四个传入值都满足这套配置的 kernel 和 checkpoint 粒度。固定版 vLLM 按每 token 576 B 把 MLA 块向上取整到能容纳一份 KDA 状态，再由 Ascend 按每 token 656 B 计算打包后的 MLA 页宽和 KDA padding。DCP 逻辑覆盖等于生效 block size × DCP。KDA 的 96 个头按 TP8 切成每卡 12 个。</p>
       <p>模型按独享请求、无前缀复用计算。投机预留用于计算页数。<code>max_model_len</code> 列仍是输入与可生成预算之和。全池 null ID、模型权重、图内存和按引擎槽数分配的 RecoverSSM records 独立于该请求的 block 计费。</p>
-      <p>本页固定采用 A5 Atlas 的 1536-token 页几何。改变开关时重算页数、状态及池分项。实际启动时如发生重新定页，应当用对应部署的 cache spec 校准。两份基础状态页采用容量规划上界。</p>
-      <p class="sources"><a href="https://dawn952.github.io/kimi-k31-a5-analysis/">A5 Atlas</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/models/kimi_k3/paired_sfa_cache.py">物理页和步长</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/attention/sfa_v1.py#L412-L414">SFA kernel 小块</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/models/kimi_k3/cache_config.py">KDA 分组源码</a><a href="https://github.com/vllm-project/vllm-ascend/pull/21549">RecoverSSM</a></p>
+      <p>历史 DCP8 部署传入 768，启动后生效为 1536。本站默认直接传入 1536。其他页几何及无 DCP 场景按源码推算。实际 DCP8 启动还需校验 <code>cp_kv_cache_interleave_size</code>。两份基础状态页采用容量规划上界。</p>
+      <p class="sources"><a href="https://dawn952.github.io/kimi-k31-a5-analysis/">A5 Atlas</a><a href="https://github.com/vllm-project/vllm/blob/4ba787ec9959e566d3b587a796dff07673324da5/vllm/platforms/interface.py#L1066-L1128">vLLM 选块</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/platform.py#L456-L489">Ascend 页对齐</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/models/kimi_k3/paired_sfa_cache.py">物理页和步长</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/attention/sfa_v1.py#L412-L414">SFA kernel 小块</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/models/kimi_k3/cache_config.py">KDA 分组源码</a><a href="https://github.com/vllm-project/vllm-ascend/pull/21549">RecoverSSM</a></p>
     </details>
   </section>
 </main>
@@ -57,6 +59,6 @@
   <div class="dialog-head"><div><h2 id="detail-title">占用明细</h2><p id="detail-caption" class="caption"></p></div><form method="dialog"><button>关闭</button></form></div>
   <div id="detail-rows"></div>
 </dialog>
-<script src="model.js?v=4" defer></script>
-<script src="app.js?v=5" defer></script>
+<script src="model.js?v=6" defer></script>
+<script src="app.js?v=6" defer></script>
 </html>
