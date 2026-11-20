@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kimi-K3.1 Pro KVCache 对比台</title>
-<link rel="stylesheet" href="style.css?v=23">
+<link rel="stylesheet" href="style.css?v=24">
 <main>
   <header>
     <p class="eyebrow">vLLM ASCEND / DECODE</p>
@@ -47,10 +47,15 @@
   </section>
 
   <section aria-labelledby="layout-title" id="cache-layout">
-    <h2 id="layout-title">Kimi-K3.1 Pro 的 <a class="layout-visual-link" href="#layout-visual" aria-haspopup="dialog">LBNHC 布局</a></h2>
+    <h2 id="layout-title">Kimi-K3.1 Pro 的 LBNHC 布局</h2>
     <p id="layout-caption" class="caption" aria-live="polite"></p>
     <p id="block-adjustment" class="caption inline-explanation" hidden></p>
-    <div id="layout"></div>
+    <div id="layout-summary"></div>
+    <div id="layout-visual"></div>
+    <details class="visual-block-detail">
+      <summary>查看完整层表与显存分项</summary>
+      <div id="layout"></div>
+    </details>
     <details>
       <summary>对齐原理与计算口径</summary>
       <p><strong>地址顺序。</strong> <code>L → B → N → H → C</code> 分别对应存储行（物理层槽）、池内 block ID、本卡页内 token、存储的 KV head 和打包后的通道。MLA / KDA 共用区里，同一存储行的 block 连续，<code>offset(L,B) = L × 池总 block 数 × 主 MLA 页字节 + B × 主 MLA 页字节</code>。图中只展示当前请求占用的块。分配器用整个池的 block 数计算相邻存储行的间距。</p>
@@ -72,14 +77,10 @@
     </details>
   </section>
 </main>
-<dialog id="layout-visual" aria-labelledby="layout-visual-title">
-  <div class="dialog-head"><h2 id="layout-visual-title">LBNHC 块布局</h2><form method="dialog"><button autofocus>关闭</button></form></div>
-  <div id="layout-visual-content"></div>
-</dialog>
 <dialog id="detail" aria-labelledby="detail-title">
   <div class="dialog-head"><div><h2 id="detail-title">占用明细</h2><p id="detail-caption" class="caption"></p></div><form method="dialog"><button>关闭</button></form></div>
   <div id="detail-rows"></div>
 </dialog>
 <script src="model.js?v=16" defer></script>
-<script src="app.js?v=26" defer></script>
+<script src="app.js?v=27" defer></script>
 </html>

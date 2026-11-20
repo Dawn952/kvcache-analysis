@@ -333,21 +333,6 @@ dialog::backdrop {
   gap: .75rem;
 }
 
-.layout-visual-link {
-  color: var(--accent);
-  text-underline-offset: .2em;
-}
-
-#layout-visual {
-  width: min(1200px, 100% - 1rem);
-  max-height: 92dvh;
-  padding: clamp(.75rem, 2vw, 1.4rem);
-}
-
-#layout-visual .dialog-head h2 {
-  margin: 0;
-}
-
 .visual-block-nav {
   display: flex;
   flex-wrap: wrap;
@@ -355,7 +340,7 @@ dialog::backdrop {
   margin-bottom: .65rem;
 }
 
-.mla-block-lookup {
+.mla-block-lookup, .physical-block-order {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -364,8 +349,16 @@ dialog::backdrop {
   color: var(--muted);
 }
 
-.mla-block-lookup strong {
+.mla-block-lookup strong, .physical-block-order strong {
   color: var(--accent);
+}
+
+.physical-block-order {
+  padding: .5rem .6rem;
+  margin-bottom: .55rem;
+  border: 1px solid var(--line);
+  border-radius: .45rem;
+  background: #0d1726;
 }
 
 .visual-block-nav button {
@@ -435,7 +428,7 @@ dialog::backdrop {
   color: var(--muted);
 }
 
-.visual-block-id[aria-pressed="true"], .visual-block[data-matched] {
+.visual-block-id[aria-pressed="true"], .visual-block[data-matched], .visual-block.physical-order-focus {
   color: #effbff;
   background: #265d76;
   border-color: var(--accent);
