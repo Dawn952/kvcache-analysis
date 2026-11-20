@@ -598,7 +598,7 @@ dialog::backdrop {
   font-weight: 400;
 }
 
-.block-adjustment-toggle {
+.explanation-toggle {
   color: var(--accent);
   padding: 0;
   border: 0;
@@ -610,7 +610,7 @@ dialog::backdrop {
   white-space: nowrap;
 }
 
-.block-adjustment {
+.inline-explanation {
   border-inline-start: 2px solid var(--accent);
   padding-inline-start: .7rem;
 }

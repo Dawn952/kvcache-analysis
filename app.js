@@ -110,13 +110,17 @@ function renderBlockSize({ requestedBlock, localBlock, upstreamQuantumBytes, ali
     ? `翻倍到 ${requestedBlock * 2} token 只有 ${fmt.format(upstreamQuantumBytes * 2)} B，仍然不够。`
     : '';
   blockAdjustment.textContent = `上游按 ${current.mlaDtype} MLA 的 ${bytesPerToken} B/token 选块。${requestedBlock} token 只提供 ${fmt.format(upstreamQuantumBytes)} B，KDA 单层状态需要 ${fmt.format(pages.state)} B。${doubled}最小够用的是 ${requestedBlock} × ${alignmentMultiple} = ${localBlock} token，选块容量为 ${fmt.format(upstreamQuantumBytes * alignmentMultiple)} B。`;
-  return `${requestedBlock} → <button type="button" class="block-adjustment-toggle" aria-controls="block-adjustment" aria-expanded="${!blockAdjustment.hidden}">${effective}</button>`;
+  return `${requestedBlock} → <button type="button" class="explanation-toggle" aria-controls="block-adjustment" aria-expanded="${!blockAdjustment.hidden}">${effective}</button>`;
 }
 
 function renderLayout() {
   const value = calculate(inputs[selected], current);
   const groups = Array.from({ length: stateGroups }, (_, index) => index);
   const { pages, regions } = value;
+  const stateCount = `${value.stateCopies} 块`;
+  const stateCountLabel = value.stateCopies > 1
+    ? `<button type="button" class="explanation-toggle" aria-controls="kda-state-explanation" aria-expanded="false">${stateCount}</button>`
+    : stateCount;
   const blockMarks = (count) => `<span class="block-marks" aria-hidden="true">${'<i></i>'.repeat(Math.min(count, 12))}${count > 12 ? '<b>…</b>' : ''}</span>`;
   const mainSlots = Array.from({ length: mainLayers }, (_, slot) => {
     const empty = slot === layersPerStateGroup;
@@ -131,10 +135,11 @@ function renderLayout() {
   layout.innerHTML = `
     <div class="flow">
       <div><small>MLA 历史 blocks</small><strong>${value.historyIds} 个</strong><small>⌈${fmt.format(value.limit)} ÷ ${fmt.format(value.coverage)}⌉</small></div>
-      <div><small>KDA 常驻状态块</small><strong>3 组 × ${value.stateCopies} 块</strong><small>每组 23 层，持有各自的 ID</small></div>
+      <div><small>KDA 常驻状态块</small><strong>3 组 × ${stateCountLabel}</strong><small>每组 23 层，持有各自的 ID</small></div>
       <div><small>一个逻辑 block 的显存 / 卡</small><strong>${memory(value.bytesPerId)}</strong><small>${fmt.format(value.bytesPerId)} B</small></div>
       <div><small>请求合计 / 卡</small><strong>${memory(value.bytes)}</strong><small>(${value.historyIds} + ${value.stateIds}) × 单 block 显存</small></div>
     </div>
+    ${value.stateCopies > 1 ? `<p id="kda-state-explanation" class="caption inline-explanation" hidden>RecoverSSM 关闭时，KDA 为每个投机 token 位置保留一份候选状态，验证后按实际接受的长度选取下一轮解码所需的状态。当前 <code>spec_num = ${current.spec}</code>，所以每组是 <strong>1 块运行状态 + ${current.spec} 块投机状态 = ${stateCount}</strong>。三组共 ${value.stateIds} 块。</p>` : ''}
     <div class="axis-key" id="layout-reading-guide">
       <div><strong>纵向看存储行（L）。</strong> 例如第 0 行存放模型第 3 层的 MLA，以及第 0、1、2 层的 KDA。</div>
       <div><strong>横向看缓存块（B）。</strong> B 是缓存池中的块编号。同一组的各层共用一批编号，列标题显示这一组占用多少块。</div>
@@ -253,11 +258,12 @@ function showByteOffset(target) {
   return Boolean(segment);
 }
 
-layoutCaption.addEventListener('click', (event) => {
-  const button = event.target.closest('.block-adjustment-toggle');
+byId('cache-layout').addEventListener('click', (event) => {
+  const button = event.target.closest('.explanation-toggle');
   if (!button) return;
-  blockAdjustment.hidden = !blockAdjustment.hidden;
-  button.setAttribute('aria-expanded', !blockAdjustment.hidden);
+  const explanation = byId(button.getAttribute('aria-controls'));
+  explanation.hidden = !explanation.hidden;
+  button.setAttribute('aria-expanded', !explanation.hidden);
 });
 
 document.querySelector('.layout-visual-link').addEventListener('click', (event) => {
