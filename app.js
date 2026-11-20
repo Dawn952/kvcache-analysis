@@ -27,6 +27,7 @@ const memory = (bytes) => bytes >= 2 ** 30
 const lengths = ['4k+1k', '16k+1k', '64k+1k', '128k+1k', '1M'];
 const topology = ({ platform, dcp }) => `DP4${dcp > 1 ? ` / DCP${dcp}` : ''} / TP${platforms[platform].tp}`;
 const weightLabel = (value) => value === 'native' ? 'Moonshot 原生 MXFP4' : value;
+const blockInputPrefix = ({ requestedBlock, localBlock }) => requestedBlock === localBlock ? '' : `${requestedBlock} → `;
 
 function describe({ recover: enabled, spec: count }) {
   return `RecoverSSM ${enabled ? '开' : '关'} · DSpark ${count ? `${count} token` : '关'}`;
@@ -106,7 +107,7 @@ function renderLayout() {
       ? '<td class="empty">空槽</td>' : `<td class="kda">KDA ${slot * 4 + group}</td>`).join('')}</tr>`;
   });
   const sideRow = (name, layers, kind, text) => `<tr><th scope="row">${name} 区 × ${layers} 层</th><td class="${kind}">${text}</td>${groups.map(() => '<td class="empty">预留空页</td>').join('')}</tr>`;
-  byId('layout-caption').innerHTML = `${lengths[selected]} · ${topology(current)} · ${weightLabel(current.weight)} · ${describe(current)} · block ${value.requestedBlock} → <strong>${value.localBlock} token / 卡</strong> · ${geometryEvidence(value, current)}`;
+  byId('layout-caption').innerHTML = `${lengths[selected]} · ${topology(current)} · ${weightLabel(current.weight)} · ${describe(current)} · block ${blockInputPrefix(value)}<strong>${value.localBlock} token / 卡</strong> · ${geometryEvidence(value, current)}`;
   layout.innerHTML = `
     <div class="flow">
       <div><small>MLA 历史 blocks</small><strong>${value.historyIds} 个</strong><small>⌈${fmt.format(value.limit)} ÷ ${fmt.format(value.coverage)}⌉</small></div>
@@ -196,7 +197,7 @@ function openDetail(row) {
   const config = current;
   const value = calculate(inputs[row], config);
   byId('detail-title').textContent = `${memory(value.bytes)} / 卡`;
-  byId('detail-caption').textContent = `${lengths[row]} · ${topology(config)} · ${weightLabel(config.weight)} · ${describe(config)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, config)}`;
+  byId('detail-caption').textContent = `${lengths[row]} · ${topology(config)} · ${weightLabel(config.weight)} · ${describe(config)} · block ${blockInputPrefix(value)}${value.localBlock} token / 卡 · ${geometryEvidence(value, config)}`;
   byId('detail-rows').innerHTML = `<p class="caption">历史 ID = ⌈${fmt.format(value.limit)} / ${fmt.format(value.coverage)}⌉ = ${value.historyIds}。投机预留受本档 <code>max-model-len</code> 截断。KDA 常驻 = 3 组 × ${value.stateCopies} 块 = ${value.stateIds} ID。每个 ID 占 ${memory(value.bytesPerId)} / 卡。</p>${value.rows.map((entry) => `<details class="breakdown"><summary><span>${entry.name}</span><strong>${memory(entry.bytes)}</strong></summary><p>${entry.shape}</p><p><code>${entry.formula} = ${fmt.format(entry.bytes)} B</code></p><p class="tags">${entry.tags.map((tag) => `<span>${tag}</span>`).join('')}</p></details>`).join('')}`;
   detail.showModal();
 }
