@@ -1,7 +1,8 @@
 'use strict';
 
-const { inputs, defaultBlock, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup, draftLayers, calculate } = KVCache;
+const { inputs, defaultBlock, platforms, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup, draftLayers, calculate } = KVCache;
 const byId = (id) => document.getElementById(id);
+const hardware = byId('hardware');
 const scenario = byId('scenario');
 const recover = byId('recover');
 const draft = byId('draft');
@@ -21,36 +22,58 @@ const memory = (bytes) => bytes >= 2 ** 30
   ? `${(bytes / 2 ** 30).toFixed(3)} GiB`
   : `${(bytes / 2 ** 20).toFixed(2)} MiB`;
 const lengths = ['4k+1k', '16k+1k', '64k+1k', '128k+1k', '1M'];
-const topology = (dcp) => dcp === 8 ? 'DP4 / DCP8 / TP8' : 'DP4 / TP8';
+const topology = ({ platform, dcp }) => `DP4${dcp > 1 ? ` / DCP${dcp}` : ''} / TP${platforms[platform].tp}`;
 
 function describe({ recover: enabled, spec: count }) {
   return `RecoverSSM ${enabled ? '开' : '关'} · DSpark ${count ? `${count} token` : '关'}`;
 }
 
-function geometryEvidence(value, dcp) {
-  return dcp === 8 && value.localBlock === defaultBlock ? '页几何有历史日志' : '源码推算 · 未实测';
+function geometryEvidence(value, config) {
+  if (config.platform === 'a3') return '公开部署模板 · 占用推算';
+  return config.dcp === 8 && value.localBlock === defaultBlock ? '页几何有历史日志' : '源码推算 · 未实测';
+}
+
+function selectPlatform() {
+  const platform = hardware.value;
+  const preset = platforms[platform];
+  const dcpOptions = platform === 'a5' ? [preset.dcp, 1] : [preset.dcp];
+  byId('weight').replaceChildren(new Option(preset.weight));
+  scenario.replaceChildren(...dcpOptions.map(dcp => new Option(topology({ platform, dcp }), dcp)));
+  blockSize.replaceChildren(...preset.blockOptions.map(size => new Option(size, size)));
+  blockSize.value = String(preset.defaultBlock);
+  recover.checked = preset.recover;
+  draft.checked = true;
+  spec.value = '3';
+  render();
 }
 
 function render() {
   layoutColumn = 0;
   spec.disabled = !draft.checked;
-  const current = { dcp: Number(scenario.value), recover: recover.checked,
+  const current = { platform: hardware.value, dcp: Number(scenario.value), recover: recover.checked,
     spec: draft.checked ? Number(spec.value) : 0, requestedBlock: Number(blockSize.value) };
+  const preset = platforms[current.platform];
+  byId('cache-dtypes').textContent = `D 节点 · 图模式 · 主 Attention KV / Indexer K ${preset.cacheDtype} · Draft MLA KV ${current.spec ? 'BF16' : '关闭'}`;
   const geometry = calculate(inputs[0], current);
-  byId('block-size-summary').innerHTML = `<span>传入 <strong>${geometry.requestedBlock}</strong> → 生效 <strong>${geometry.localBlock}</strong> token / 卡</span><small>${geometryEvidence(geometry, current.dcp)}</small>`;
-  const alternateDcp = current.dcp === 8 ? 1 : 8;
+  byId('block-size-summary').innerHTML = `<span>传入 <strong>${geometry.requestedBlock}</strong> → 生效 <strong>${geometry.localBlock}</strong> token / 卡</span><small>${geometryEvidence(geometry, current)}</small>`;
   comparisons = [current, { ...current, recover: !current.recover }, { ...current, spec: 0 },
-    { ...current, spec: 3 }, { ...current, dcp: alternateDcp }];
-  const alternateLabel = alternateDcp === 1 ? 'DP4 / TP8（推算）' : topology(alternateDcp);
-  const headings = ['当前配置', `RecoverSSM ${current.recover ? '关' : '开'}`, 'DSpark 关闭', 'DSpark 3 token', alternateLabel];
-  document.querySelectorAll('.config-heading').forEach((heading, column) => {
+    { ...current, spec: 3 }];
+  const headings = ['当前配置', `RecoverSSM ${current.recover ? '关' : '开'}`, 'DSpark 关闭', 'DSpark 3 token'];
+  if (current.platform === 'a5') {
+    const alternate = { ...current, dcp: current.dcp === preset.dcp ? 1 : preset.dcp };
+    comparisons.push(alternate);
+    headings.push(`${topology(alternate)}${alternate.dcp === 1 ? '（推算）' : ''}`);
+  }
+  byId('alternate-heading').hidden = current.platform !== 'a5';
+  byId('comparison-columns').span = comparisons.length;
+  document.querySelectorAll('.config-heading:not([hidden])').forEach((heading, column) => {
     const { bytesPerId } = calculate(inputs[0], comparisons[column]);
     heading.innerHTML = `${headings[column]}<small>${memory(bytesPerId)} / block</small>`;
   });
   results.innerHTML = inputs.map((input, index) => {
     const cells = comparisons.map((config, column) => {
       const value = calculate(input, config);
-      return `<td><button type="button" class="value" data-row="${index}" data-column="${column}" aria-label="${lengths[index]}，${topology(config.dcp)}，${describe(config)}，${memory(value.bytes)}，查看明细">${memory(value.bytes)}<small>${value.historyIds} MLA + ${value.stateIds} KDA</small></button></td>`;
+      return `<td><button type="button" class="value" data-row="${index}" data-column="${column}" aria-label="${lengths[index]}，${topology(config)}，${describe(config)}，${memory(value.bytes)}，查看明细">${memory(value.bytes)}<small>${value.historyIds} MLA + ${value.stateIds} KDA</small></button></td>`;
     }).join('');
     return `<tr><th scope="row"><button type="button" class="length" data-row="${index}" aria-pressed="${index === selected}">${lengths[index]}</button></th>${cells}</tr>`;
   }).join('');
@@ -73,7 +96,7 @@ function renderLayout() {
       ? '<td class="empty">空槽</td>' : `<td class="kda">KDA ${slot * 4 + group}</td>`).join('')}</tr>`;
   });
   const sideRow = (name, layers, kind, text) => `<tr><th scope="row">${name} 区 × ${layers} 层</th><td class="${kind}">${text}</td>${groups.map(() => '<td class="empty">预留空页</td>').join('')}</tr>`;
-  byId('layout-caption').textContent = `${lengths[selected]} · ${topology(current.dcp)} · ${describe(current)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, current.dcp)}`;
+  byId('layout-caption').textContent = `${lengths[selected]} · ${topology(current)} · ${describe(current)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, current)}`;
   layout.innerHTML = `
     <div class="flow">
       <div><small>MLA 历史 blocks</small><strong>${value.historyIds} 个</strong><small>⌈(${fmt.format(value.limit)} + ${current.spec}) ÷ ${fmt.format(value.coverage)}⌉</small></div>
@@ -90,7 +113,7 @@ function renderLayout() {
       <tbody>${mainSlots.slice(0, 3).join('')}<tr id="middle-slots-placeholder" ${showMiddleSlots ? 'hidden' : ''}><th scope="row">L 槽 3–22</th><td colspan="4" class="empty"><button id="expand-middle-slots" type="button" class="layout-toggle" data-layout-panel="middle-slots" aria-controls="middle-slots" aria-expanded="false">展开中间 20 个槽位</button></td></tr></tbody>
       <tbody id="middle-slots" ${showMiddleSlots ? '' : 'hidden'}>${mainSlots.slice(3, -1).join('')}</tbody>
       <tbody>${mainSlots.at(-1)}</tbody>
-      <tbody>${sideRow('Indexer', mainLayers, 'indexer', 'FP8 K + scale')}${current.spec ? sideRow('Draft', draftLayers, 'draft', 'BF16 MLA KV') : ''}</tbody>
+      <tbody>${sideRow('Indexer', mainLayers, 'indexer', `${platforms[current.platform].cacheDtype} K + scale`)}${current.spec ? sideRow('Draft', draftLayers, 'draft', 'BF16 MLA KV') : ''}</tbody>
     </table></div>
     <h3>一个池 block 的显存怎么算</h3>
     <div class="scroll"><table class="pool-map" aria-label="单池 block 显存分项"><thead><tr><th scope="col">区域</th><th scope="col">物理页数 × 每页字节</th><th scope="col">每个池 ID</th></tr></thead><tbody>
@@ -163,7 +186,7 @@ function openDetail(row, column) {
   const config = comparisons[column];
   const value = calculate(inputs[row], config);
   byId('detail-title').textContent = `${memory(value.bytes)} / 卡`;
-  byId('detail-caption').textContent = `${lengths[row]} · ${topology(config.dcp)} · ${describe(config)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, config.dcp)}`;
+  byId('detail-caption').textContent = `${lengths[row]} · ${topology(config)} · ${describe(config)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, config)}`;
   byId('detail-rows').innerHTML = `<p class="caption">历史 ID = ⌈(${fmt.format(value.limit)} + ${config.spec}) / ${fmt.format(value.coverage)}⌉ = ${value.historyIds}。KDA = 3 组 × ${value.stateCopies} 份 = ${value.stateIds} ID。每个 ID 占 ${memory(value.bytesPerId)} / 卡。</p>${value.rows.map((entry) => `<details class="breakdown"><summary><span>${entry.name}</span><strong>${memory(entry.bytes)}</strong></summary><p>${entry.shape}</p><p><code>${entry.formula} = ${fmt.format(entry.bytes)} B</code></p><p class="tags">${entry.tags.map((tag) => `<span>${tag}</span>`).join('')}</p></details>`).join('')}`;
   detail.showModal();
 }
@@ -181,14 +204,11 @@ results.addEventListener('click', (event) => {
 });
 
 for (const control of [scenario, recover, draft, spec, blockSize]) control.addEventListener('change', render);
+hardware.addEventListener('change', selectPlatform);
 byId('reset').addEventListener('click', () => {
-  scenario.value = '8';
-  recover.checked = true;
-  draft.checked = true;
-  spec.value = '3';
-  blockSize.value = String(defaultBlock);
+  hardware.value = 'a5';
   selected = 3;
-  render();
+  selectPlatform();
 });
 
-render();
+selectPlatform();

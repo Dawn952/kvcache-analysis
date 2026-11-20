@@ -4,7 +4,12 @@
   const Ki = 1024;
   const inputs = [4 * Ki, 16 * Ki, 64 * Ki, 128 * Ki, Ki * Ki - Ki];
   const defaultBlock = 1536;
-  const blockOptions = [640, 1024, 1408, defaultBlock];
+  const platforms = {
+    a5: { name: 'Ascend 950DT', weight: 'W4A8_MXFP', tp: 8, dcp: 8, recover: true,
+      blockOptions: [640, 1024, 1408, defaultBlock], defaultBlock, cacheDtype: 'FP8', indexScaleDtype: 'FP32', indexBytes: 132 },
+    a3: { name: 'Atlas 800I A3', weight: 'W4A8', tp: 16, dcp: 16, recover: false,
+      blockOptions: [768], defaultBlock: 768, cacheDtype: 'INT8', indexScaleDtype: 'FP16', indexBytes: 130 },
+  };
   const mlaKernelBlock = 128;
   const upstreamMlaTokenBytes = 576;
   const packedMlaTokenBytes = 656;
@@ -13,15 +18,17 @@
   const stateGroups = 3;
   const layersPerStateGroup = stateLayers / stateGroups;
   const draftLayers = 5;
-  const heads = 12;
   const dim = 128;
 
-  function calculate(input, { dcp, recover, spec, requestedBlock = defaultBlock }) {
-    if (![1, 8].includes(dcp) || !Number.isInteger(spec) || spec < 0 || spec > 7) {
-      throw new RangeError('DCP 须为 1 或 8，numspec 须为 0 至 7 的整数');
+  function calculate(input, { platform = 'a5', dcp, recover, spec, requestedBlock = platforms[platform]?.defaultBlock }) {
+    const preset = platforms[platform];
+    if (!preset || (dcp !== preset.dcp && !(platform === 'a5' && dcp === 1))) {
+      throw new RangeError('不支持此机型和 DCP 组合');
     }
-    if (!blockOptions.includes(requestedBlock)) throw new RangeError('不支持此 block-size 档位');
+    if (!Number.isInteger(spec) || spec < 0 || spec > 7) throw new RangeError('numspec 须为 0 至 7 的整数');
+    if (!preset.blockOptions.includes(requestedBlock)) throw new RangeError('不支持此 block-size 档位');
 
+    const heads = 96 / preset.tp;
     const recurrent = heads * dim * dim * 4;
     const conv = (3 + spec) * 3 * heads * dim * 2;
     const state = recurrent + conv;
@@ -36,7 +43,7 @@
     const stateCopies = 2 + (recover ? 0 : spec);
     const stateIds = stateCopies * stateGroups;
     const mainPage = localBlock * packedMlaTokenBytes;
-    const indexPage = localBlock * 132;
+    const indexPage = localBlock * preset.indexBytes;
     const draftPage = spec ? localBlock * 1152 : 0;
     const mainRegion = mainLayers * mainPage;
     const indexRegion = mainLayers * indexPage;
@@ -44,17 +51,17 @@
     const bytesPerId = mainRegion + indexRegion + draftRegion;
     const rows = [
       { name: '主模型 Attention KV', bytes: historyIds * mainRegion,
-        shape: '512 × FP8 + 64 × BF16 + 4 × FP32 scale = 656 B / token / 层',
+        shape: `512 × ${preset.cacheDtype} + 64 × BF16 + 4 × FP32 scale = 656 B / token / 层`,
         formula: `${historyIds} 历史 ID × 24 层 × ${localBlock} 本地 token × 656 B`, tags: ['DCP', 'DSpark'] },
       { name: '主模型 Indexer K', bytes: historyIds * indexRegion,
-        shape: '128 × FP8 + 1 × FP32 scale = 132 B / token / 层',
-        formula: `${historyIds} 历史 ID × 24 层 × ${localBlock} 本地 token × 132 B`, tags: ['DCP', 'DSpark'] },
+        shape: `128 × ${preset.cacheDtype} + 1 × ${preset.indexScaleDtype} scale = ${preset.indexBytes} B / token / 层`,
+        formula: `${historyIds} 历史 ID × 24 层 × ${localBlock} 本地 token × ${preset.indexBytes} B`, tags: ['DCP', 'DSpark'] },
       { name: 'DSpark draft MLA KV', bytes: historyIds * draftRegion,
         shape: spec ? '(512 latent + 64 RoPE) × BF16 = 1152 B / token / 层' : 'DSpark 关闭，草稿缓存区域为 0 B',
         formula: `${historyIds} 历史 ID × ${spec ? 5 : 0} 层 × ${localBlock} 本地 token × 1152 B`, tags: ['DCP', 'DSpark'] },
       { name: 'KDA 状态内容', bytes: stateLayers * stateCopies * state,
-        shape: `[12,128,128] FP32 + [${3 + spec},3,12,128] BF16 = ${state} B / 层 / 份`,
-        formula: `69 层 × ${stateCopies} 份 × (${recurrent} B recurrent + ${conv} B conv)`, tags: ['TP8', 'DSpark', 'RecoverSSM'] },
+        shape: `[${heads},128,128] FP32 + [${3 + spec},3,${heads},128] BF16 = ${state} B / 层 / 份`,
+        formula: `69 层 × ${stateCopies} 份 × (${recurrent} B recurrent + ${conv} B conv)`, tags: [`TP${preset.tp}`, 'DSpark', 'RecoverSSM'] },
       { name: 'KDA 页内 padding', bytes: stateLayers * stateCopies * (mainPage - state),
         shape: `主 MLA 物理页 ${mainPage} B，KDA 原始状态 ${state} B`,
         formula: `69 层 × ${stateCopies} 份 × (${mainPage} − ${state}) B`, tags: ['DSpark', 'RecoverSSM'] },
@@ -73,7 +80,7 @@
       requestedBlock, localBlock, upstreamQuantumBytes, alignmentMultiple };
   }
 
-  const model = { Ki, inputs, defaultBlock, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup, draftLayers, calculate };
+  const model = { Ki, inputs, defaultBlock, platforms, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup, draftLayers, calculate };
   if (typeof module !== 'undefined') module.exports = model;
   else root.KVCache = model;
 })(globalThis);
