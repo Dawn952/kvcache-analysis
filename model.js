@@ -62,7 +62,8 @@
     // Each row sets the engine max_model_len to input + output. allocate_slots
     // caps main tokens plus lookahead at that limit before full-attention paging.
     const historyIds = Math.ceil(limit / coverage);
-    const stateCopies = 2 + (recover ? 0 : spec);
+    // Decode steady state holds one running state per group. Cross-block overlap is transient.
+    const stateCopies = 1 + (recover ? 0 : spec);
     const stateIds = stateCopies * stateGroups;
     const mainPage = localBlock * mla.tokenBytes;
     const indexPage = localBlock * indexer.tokenBytes;

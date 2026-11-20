@@ -57,7 +57,7 @@
       <p><strong>先选 token 块，再算物理页。</strong> 量化 MLA 按 576 B/token 选块，按 656 B/token 打包。BF16 MLA 的两个步骤都按 1152 B/token 计算。Indexer 的 INT8、FP8、BF16 分别用 130、132、256 B/token。DCP 逻辑覆盖等于生效 block size × DCP。KDA 的 96 个头按 TP 切分，TP8 每卡 12 个，TP16 每卡 6 个。</p>
       <p><code>spec_num</code> 对应 vLLM 的 <code>num_speculative_tokens</code>。Draft BF16 使用 1152 B/token。Draft C8 是按 576 B/token 的容量估算，静态 scale 另计，算子可用性和部署未验证。<a href="https://dawn952.github.io/kimi-k31-a5-analysis/">A5 Atlas 的 DSpark C8 容量口径</a></p>
       <p>按独享请求、无前缀复用计算。每档以输入与生成预算之和设置 <code>max-model-len</code>，<code>1M</code> 档使用 <code>(1M−1k)+1k</code>。<code>allocate_slots</code> 先将主模型 token 和 lookahead 的和截断到模型上限，再由 Full Attention manager 按 DCP 逻辑块取整。因此用满本档预算时，lookahead 不会跨过模型上限占用新块。</p>
-      <p><code>MambaManager</code> 在 align 模式只按主模型进度管理状态，不把 lookahead 当成 KDA token。表里的两个基础块和投机状态副本用于规划。实际驻留会随状态复用和 checkpoint 变化。额外 Prefill checkpoint、历史驻留、全池 null ID、权重、图内存和 RecoverSSM records 另计。</p>
+      <p><code>MambaManager</code> 在 align 模式按主模型进度管理 KDA 状态。单请求的稳态 Decode 每组保留 1 个运行状态块，RecoverSSM 关闭时再加投机状态块。跨块切换时旧块暂留，后续由 <code>remove_skipped_blocks</code> 释放。跨块重叠、额外 Prefill checkpoint、历史驻留、全池 null ID、权重、图内存和 RecoverSSM records 另计。</p>
       <h3>默认场景的证据</h3>
       <div class="scroll"><table class="pool-map"><thead><tr><th scope="col">Decode 配置</th><th scope="col">生效页 / 模板 interleave</th><th scope="col">每池 ID / 卡</th><th scope="col">证据范围</th></tr></thead><tbody>
       <tr><th scope="row">950DT · DP4 / DCP8 / TP8</th><td>1536 / 1536 token</td><td>37,896,192 B</td><td>历史页几何，单请求占用按源码推算</td></tr>
@@ -66,7 +66,7 @@
       <p>950DT 历史日志的传入 block size 和 interleave 均为 768，启动后单卡页生效为 1536，记录的 cache group token 粒度为 <code>(12288, 1536, 1536, 1536)</code>。本站默认采用公开模板的 <code>1536 / 1536</code>，引用历史日志核对页几何。其他页几何及无 DCP 场景按源码推算，启动时仍需校验 interleave。</p>
       <p>A3 采用公开 1M Decode 模板和 W4A8 权重，默认关闭可选的 RecoverSSM。历史 A3 的 packed 布局运行与本站的 paired 布局不同。现有证据支持 A3 的页字节计算，单请求实际持有量及 RecoverSSM 对照仍是推算。</p>
       <p>950DT 的 Moonshot 原生档采用 <code>moonshotai/Kimi-K3.1-Pro</code> 的 MXFP4 checkpoint。其打包格式为 <code>mxfp4-pack-quantized</code>，官方 950DT 模板使用 Ascend 发布的 W4A8_MXFP 权重。原生档按显式指定的相同 KV dtype 和布局推算，加载及总 HBM 待验证。<a href="https://huggingface.co/moonshotai/Kimi-K3.1-Pro/blob/main/config.json">原生权重配置</a> · <a href="https://docs.vllm.ai/projects/ascend/en/main/tutorials/models/Kimi-K3.1-Pro.html">950DT 部署模板</a></p>
-      <p class="sources"><a href="https://github.com/Dawn952/kimi-k31-a5-analysis/blob/main/data/memory-dcp-evidence.json">950DT 历史启动摘要</a><a href="https://github.com/vllm-project/vllm/blob/4ba787ec9959e566d3b587a796dff07673324da5/vllm/v1/core/kv_cache_manager.py#L550-L580">请求分配与上限</a><a href="https://github.com/vllm-project/vllm/blob/4ba787ec9959e566d3b587a796dff07673324da5/vllm/v1/core/single_type_kv_cache_manager.py#L1810-L1878">KDA 状态复用</a><a href="https://github.com/vllm-project/vllm/blob/4ba787ec9959e566d3b587a796dff07673324da5/vllm/v1/kv_cache_interface.py#L1135-L1153">MambaSpec 规划口径</a></p>
+      <p class="sources"><a href="https://github.com/Dawn952/kimi-k31-a5-analysis/blob/main/data/memory-dcp-evidence.json">950DT 历史启动摘要</a><a href="https://github.com/vllm-project/vllm/blob/4ba787ec9959e566d3b587a796dff07673324da5/vllm/v1/core/kv_cache_manager.py#L550-L580">请求分配与上限</a><a href="https://github.com/vllm-project/vllm/blob/4ba787ec9959e566d3b587a796dff07673324da5/vllm/v1/core/single_type_kv_cache_manager.py#L1810-L1878">KDA 状态复用</a><a href="https://github.com/vllm-project/vllm/blob/4ba787ec9959e566d3b587a796dff07673324da5/vllm/v1/core/single_type_kv_cache_manager.py#L1629-L1657">KDA 旧块释放</a></p>
       <p class="sources"><a href="https://dawn952.github.io/kimi-k31-a5-analysis/">A5 Atlas</a><a href="https://docs.vllm.ai/projects/ascend/en/main/tutorials/models/Kimi-K3.1-Pro.html#long-context-and-1m-pd-separation-deployment">A3 1M 部署模板</a><a href="https://www.modelscope.cn/models/Eco-Tech/Kimi-K3.1-Pro-w4a8">A3 W4A8 权重</a><a href="https://github.com/vllm-project/vllm/blob/4ba787ec9959e566d3b587a796dff07673324da5/vllm/platforms/interface.py#L1066-L1128">vLLM 选块</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/platform.py#L456-L489">Ascend 页对齐</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/models/kimi_k3/paired_sfa_cache.py">物理页和步长</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/attention/sfa_v1.py#L412-L414">SFA kernel 小块</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/models/kimi_k3/cache_config.py">KDA 分组源码</a><a href="https://github.com/vllm-project/vllm-ascend/pull/21549">RecoverSSM</a></p>
     </details>
   </section>
@@ -75,6 +75,6 @@
   <div class="dialog-head"><div><h2 id="detail-title">占用明细</h2><p id="detail-caption" class="caption"></p></div><form method="dialog"><button>关闭</button></form></div>
   <div id="detail-rows"></div>
 </dialog>
-<script src="model.js?v=15" defer></script>
-<script src="app.js?v=15" defer></script>
+<script src="model.js?v=16" defer></script>
+<script src="app.js?v=16" defer></script>
 </html>
