@@ -7,6 +7,8 @@
   const mainLayers = 24;
   const stateLayers = 69;
   const stateGroups = 3;
+  const layersPerStateGroup = stateLayers / stateGroups;
+  const draftLayers = 5;
   const heads = 12;
   const dim = 128;
 
@@ -24,7 +26,7 @@
     const draftPage = spec ? localBlock * 1152 : 0;
     const mainRegion = mainLayers * mainPage;
     const indexRegion = mainLayers * indexPage;
-    const draftRegion = 5 * draftPage;
+    const draftRegion = draftLayers * draftPage;
     const bytesPerId = mainRegion + indexRegion + draftRegion;
     const recurrent = heads * dim * dim * 4;
     const conv = (3 + spec) * 3 * heads * dim * 2;
@@ -54,10 +56,12 @@
     ];
     const bytes = (historyIds + stateIds) * bytesPerId;
     if (rows.reduce((sum, row) => sum + row.bytes, 0) !== bytes) throw new Error('分项与整页计费不一致');
-    return { input, limit, coverage, historyIds, stateCopies, stateIds, bytesPerId, rows, bytes };
+    const pages = { main: mainPage, index: indexPage, draft: draftPage, state, padding: mainPage - state };
+    const regions = { main: mainRegion, index: indexRegion, draft: draftRegion };
+    return { input, limit, coverage, historyIds, stateCopies, stateIds, bytesPerId, pages, regions, rows, bytes };
   }
 
-  const model = { Ki, inputs, localBlock, calculate };
+  const model = { Ki, inputs, localBlock, mainLayers, stateGroups, layersPerStateGroup, draftLayers, calculate };
   if (typeof module !== 'undefined') module.exports = model;
   else root.KVCache = model;
 })(globalThis);
