@@ -28,6 +28,7 @@
     </div>
     <p id="block-size-summary" class="block-size-summary" aria-live="polite"></p>
     <p class="caption" id="cache-dtypes">D 节点 · 图模式 · 主 Attention KV / Indexer K FP8 · Draft MLA KV BF16</p>
+    <p class="caption" id="native-weight-note" hidden>原生档假设 KV dtype 和分组沿用 950DT 场景，估算范围为单请求 KVCache。<a href="https://huggingface.co/moonshotai/Kimi-K3.1-Pro">Moonshot 原生权重</a></p>
   </section>
 
   <section aria-labelledby="results-title">
@@ -59,6 +60,7 @@
       </tbody></table></div>
       <p>950DT 历史日志的传入 block size 和 interleave 均为 768，启动后单卡页生效为 1536，记录的 cache group token 粒度为 <code>(12288, 1536, 1536, 1536)</code>。本站默认采用公开模板的 <code>1536 / 1536</code>，引用历史日志核对页几何。其他页几何及无 DCP 场景按源码推算，启动时仍需校验 interleave。</p>
       <p>A3 采用公开 1M Decode 模板和 W4A8 权重，默认关闭可选的 RecoverSSM。历史 A3 的 packed 布局运行与本站的 paired 布局不同。现有证据支持 A3 的页字节计算，单请求实际持有量及 RecoverSSM 对照仍是推算。</p>
+      <p>950DT 的 Moonshot 原生档采用 <code>moonshotai/Kimi-K3.1-Pro</code> 的 MXFP4 checkpoint。其打包格式为 <code>mxfp4-pack-quantized</code>，官方 950DT 模板使用 Ascend 发布的 W4A8_MXFP 权重。原生档按显式指定的相同 KV dtype 和布局推算，加载及总 HBM 待验证。<a href="https://huggingface.co/moonshotai/Kimi-K3.1-Pro/blob/main/config.json">原生权重配置</a> · <a href="https://docs.vllm.ai/projects/ascend/en/main/tutorials/models/Kimi-K3.1-Pro.html">950DT 部署模板</a></p>
       <p class="sources"><a href="https://github.com/Dawn952/kimi-k31-a5-analysis/blob/main/data/memory-dcp-evidence.json">950DT 历史启动摘要</a><a href="https://github.com/vllm-project/vllm/blob/4ba787ec9959e566d3b587a796dff07673324da5/vllm/v1/core/kv_cache_manager.py#L550-L580">请求分配与上限</a><a href="https://github.com/vllm-project/vllm/blob/4ba787ec9959e566d3b587a796dff07673324da5/vllm/v1/core/single_type_kv_cache_manager.py#L1810-L1878">KDA 状态复用</a><a href="https://github.com/vllm-project/vllm/blob/4ba787ec9959e566d3b587a796dff07673324da5/vllm/v1/kv_cache_interface.py#L1135-L1153">MambaSpec 规划口径</a></p>
       <p class="sources"><a href="https://dawn952.github.io/kimi-k31-a5-analysis/">A5 Atlas</a><a href="https://docs.vllm.ai/projects/ascend/en/main/tutorials/models/Kimi-K3.1-Pro.html#long-context-and-1m-pd-separation-deployment">A3 1M 部署模板</a><a href="https://www.modelscope.cn/models/Eco-Tech/Kimi-K3.1-Pro-w4a8">A3 W4A8 权重</a><a href="https://github.com/vllm-project/vllm/blob/4ba787ec9959e566d3b587a796dff07673324da5/vllm/platforms/interface.py#L1066-L1128">vLLM 选块</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/platform.py#L456-L489">Ascend 页对齐</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/models/kimi_k3/paired_sfa_cache.py">物理页和步长</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/attention/sfa_v1.py#L412-L414">SFA kernel 小块</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/models/kimi_k3/cache_config.py">KDA 分组源码</a><a href="https://github.com/vllm-project/vllm-ascend/pull/21549">RecoverSSM</a></p>
     </details>
@@ -68,6 +70,6 @@
   <div class="dialog-head"><div><h2 id="detail-title">占用明细</h2><p id="detail-caption" class="caption"></p></div><form method="dialog"><button>关闭</button></form></div>
   <div id="detail-rows"></div>
 </dialog>
-<script src="model.js?v=10" defer></script>
-<script src="app.js?v=10" defer></script>
+<script src="model.js?v=11" defer></script>
+<script src="app.js?v=11" defer></script>
 </html>

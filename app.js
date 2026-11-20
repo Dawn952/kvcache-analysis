@@ -3,6 +3,7 @@
 const { inputs, defaultBlock, platforms, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup, draftLayers, calculate } = KVCache;
 const byId = (id) => document.getElementById(id);
 const hardware = byId('hardware');
+const weight = byId('weight');
 const scenario = byId('scenario');
 const recover = byId('recover');
 const draft = byId('draft');
@@ -26,19 +27,22 @@ const memoryDelta = (bytes) => `${signedMiB.format(bytes / 2 ** 20)} MiB/卡`;
 const deltaClass = (bytes) => bytes > 0 ? 'delta-up' : bytes < 0 ? 'delta-down' : 'delta-even';
 const lengths = ['4k+1k', '16k+1k', '64k+1k', '128k+1k', '1M'];
 const topology = ({ platform, dcp }) => `DP4${dcp > 1 ? ` / DCP${dcp}` : ''} / TP${platforms[platform].tp}`;
+const weightLabel = (value) => value === 'native' ? 'Moonshot 原生 MXFP4' : value;
 
 function describe({ recover: enabled, spec: count }) {
   return `RecoverSSM ${enabled ? '开' : '关'} · DSpark ${count ? `${count} token` : '关'}`;
 }
 
 function geometryEvidence(value, config) {
+  if (config.weight === 'native') return '条件推算 · 原生权重加载未验证';
   if (config.platform === 'a3') return '模板与源码复核 · 占用推算';
   return config.dcp === 8 && value.localBlock === defaultBlock ? '页几何有启动日志 · 占用推算' : '源码推算 · 未实测';
 }
 
 function defaultConfiguration(platform) {
   const preset = platforms[platform];
-  return { platform, dcp: preset.dcp, recover: preset.recover, spec: 3, requestedBlock: preset.defaultBlock };
+  return { platform, weight: preset.weights[0], dcp: preset.dcp, recover: preset.recover, spec: 3,
+    requestedBlock: preset.defaultBlock };
 }
 
 function selectPlatform() {
@@ -46,7 +50,8 @@ function selectPlatform() {
   const preset = platforms[platform];
   const defaults = defaultConfiguration(platform);
   const dcpOptions = platform === 'a5' ? [preset.dcp, 1] : [preset.dcp];
-  byId('weight').replaceChildren(new Option(preset.weight));
+  weight.replaceChildren(...preset.weights.map(value => new Option(weightLabel(value), value)));
+  weight.value = defaults.weight;
   scenario.replaceChildren(...dcpOptions.map(dcp => new Option(topology({ platform, dcp }), dcp)));
   blockSize.replaceChildren(...preset.blockOptions.map(size => new Option(size, size)));
   blockSize.value = String(defaults.requestedBlock);
@@ -61,9 +66,10 @@ function render() {
   spec.disabled = !draft.checked;
   recover.disabled = !draft.checked;
   if (recover.disabled) recover.checked = false;
-  const current = { platform: hardware.value, dcp: Number(scenario.value), recover: recover.checked,
+  const current = { platform: hardware.value, weight: weight.value, dcp: Number(scenario.value), recover: recover.checked,
     spec: draft.checked ? Number(spec.value) : 0, requestedBlock: Number(blockSize.value) };
   const preset = platforms[current.platform];
+  byId('native-weight-note').hidden = current.weight !== 'native';
   byId('cache-dtypes').textContent = `D 节点 · 图模式 · 主 Attention KV / Indexer K ${preset.cacheDtype} · Draft MLA KV ${current.spec ? 'BF16' : '关闭'}`;
   const geometry = calculate(inputs[0], current);
   byId('block-size-summary').innerHTML = `<span>传入 <strong>${geometry.requestedBlock}</strong> → 生效 <strong>${geometry.localBlock}</strong> token / 卡</span><small>${geometryEvidence(geometry, current)}</small>`;
@@ -117,7 +123,7 @@ function renderLayout() {
       ? '<td class="empty">空槽</td>' : `<td class="kda">KDA ${slot * 4 + group}</td>`).join('')}</tr>`;
   });
   const sideRow = (name, layers, kind, text) => `<tr><th scope="row">${name} 区 × ${layers} 层</th><td class="${kind}">${text}</td>${groups.map(() => '<td class="empty">预留空页</td>').join('')}</tr>`;
-  byId('layout-caption').textContent = `${lengths[selected]} · ${label} · ${topology(current)} · ${describe(current)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, current)}`;
+  byId('layout-caption').textContent = `${lengths[selected]} · ${label} · ${topology(current)} · ${weightLabel(current.weight)} · ${describe(current)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, current)}`;
   layout.innerHTML = `
     <div class="flow">
       <div><small>MLA 历史 blocks</small><strong>${value.historyIds} 个</strong><small>⌈${fmt.format(value.limit)} ÷ ${fmt.format(value.coverage)}⌉</small></div>
@@ -207,7 +213,7 @@ function openDetail(row, column) {
   const { config, label } = comparisons[column];
   const value = calculate(inputs[row], config);
   byId('detail-title').textContent = `${memory(value.bytes)} / 卡`;
-  byId('detail-caption').textContent = `${lengths[row]} · ${label} · ${topology(config)} · ${describe(config)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, config)}`;
+  byId('detail-caption').textContent = `${lengths[row]} · ${label} · ${topology(config)} · ${weightLabel(config.weight)} · ${describe(config)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, config)}`;
   let difference = '';
   if (column) {
     const baseline = calculate(inputs[row], comparisons[0].config);
@@ -232,7 +238,7 @@ results.addEventListener('click', (event) => {
   if (button.dataset.column !== undefined) openDetail(selected, Number(button.dataset.column));
 });
 
-for (const control of [scenario, recover, draft, spec, blockSize]) control.addEventListener('change', render);
+for (const control of [weight, scenario, recover, draft, spec, blockSize]) control.addEventListener('change', render);
 hardware.addEventListener('change', selectPlatform);
 byId('reset').addEventListener('click', () => {
   hardware.value = 'a5';

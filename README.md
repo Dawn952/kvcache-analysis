@@ -9,3 +9,5 @@
 950DT 的 `--block-size` 可在 640、1024、1408 和 1536 之间切换，默认传入 1536。页面按固定版上游选块规则推算生效值，再按 Ascend 打包后的页宽计算显存。1536 token 的 DCP8 页几何有 A5 Atlas 历史日志。A3 的 paired 页几何按公开模板及源码复核。
 
 每档以输入与生成预算之和设置 `max_model_len`。投机 lookahead 受 `KVCacheManager.allocate_slots` 的模型上限截断。KDA 采用两个基础状态页加投机副本的规划口径。额外 Prefill checkpoint、全池 null ID、图内存、权重和引擎级 RecoverSSM records 另计。跨机型列使用另一机型整套默认配置，差值以当前选项为基准。
+
+950DT 可切换到 Moonshot 原生 MXFP4 checkpoint。原生档在沿用同一 KV dtype 和布局的假设下计算单请求 KVCache，实际加载及总 HBM 待验证。

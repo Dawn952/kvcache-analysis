@@ -5,9 +5,9 @@
   const inputs = [4 * Ki, 16 * Ki, 64 * Ki, 128 * Ki, Ki * Ki - Ki];
   const defaultBlock = 1536;
   const platforms = {
-    a5: { name: 'Ascend 950DT', weight: 'W4A8_MXFP', tp: 8, dcp: 8, recover: true,
+    a5: { name: 'Ascend 950DT', weights: ['W4A8_MXFP', 'native'], tp: 8, dcp: 8, recover: true,
       blockOptions: [640, 1024, 1408, defaultBlock], defaultBlock, cacheDtype: 'FP8', indexScaleDtype: 'FP32', indexBytes: 132 },
-    a3: { name: 'Atlas 800I A3', weight: 'W4A8', tp: 16, dcp: 16, recover: false,
+    a3: { name: 'Atlas 800I A3', weights: ['W4A8'], tp: 16, dcp: 16, recover: false,
       blockOptions: [768], defaultBlock: 768, cacheDtype: 'INT8', indexScaleDtype: 'FP16', indexBytes: 130 },
   };
   const mlaKernelBlock = 128;
@@ -20,11 +20,13 @@
   const draftLayers = 5;
   const dim = 128;
 
-  function calculate(input, { platform = 'a5', dcp, recover, spec, requestedBlock = platforms[platform]?.defaultBlock }) {
+  function calculate(input, { platform = 'a5', weight = platforms[platform]?.weights[0], dcp, recover, spec,
+    requestedBlock = platforms[platform]?.defaultBlock }) {
     const preset = platforms[platform];
     if (!preset || (dcp !== preset.dcp && !(platform === 'a5' && dcp === 1))) {
       throw new RangeError('不支持此机型和 DCP 组合');
     }
+    if (!preset.weights.includes(weight)) throw new RangeError('不支持此机型和权重组合');
     if (!Number.isInteger(spec) || spec < 0 || spec > 7) throw new RangeError('numspec 须为 0 至 7 的整数');
     if (recover && spec === 0) throw new RangeError('RecoverSSM 需要开启 DSpark');
     if (!preset.blockOptions.includes(requestedBlock)) throw new RangeError('不支持此 block-size 档位');
