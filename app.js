@@ -14,6 +14,7 @@ const draftDtype = byId('draft-dtype');
 const blockSize = byId('block-size');
 const results = byId('results');
 const layout = byId('layout');
+const layoutVisual = byId('layout-visual');
 const detail = byId('detail');
 let selected = 3;
 let showMiddleSlots = false;
@@ -28,6 +29,8 @@ const lengths = ['4k+1k', '16k+1k', '64k+1k', '128k+1k', '1M'];
 const topology = ({ platform, dcp }) => `DP4${dcp > 1 ? ` / DCP${dcp}` : ''} / TP${platforms[platform].tp}`;
 const weightLabel = (value) => value === 'native' ? 'Moonshot 原生 MXFP4' : value;
 const blockInputPrefix = ({ requestedBlock, localBlock }) => requestedBlock === localBlock ? '' : `${requestedBlock} → `;
+const mlaLayer = (slot) => slot === layersPerStateGroup ? 92 : slot * (stateGroups + 1) + stateGroups;
+const kdaLayer = (slot, group) => slot * (stateGroups + 1) + group;
 
 function describe({ recover: enabled, spec: count }) {
   return `RecoverSSM ${enabled ? '开' : '关'} · DSpark ${count ? `${count} token` : '关'}`;
@@ -99,12 +102,11 @@ function renderLayout() {
   const blockMarks = (count) => `<span class="block-marks" aria-hidden="true">${'<i></i>'.repeat(Math.min(count, 12))}${count > 12 ? '<b>…</b>' : ''}</span>`;
   const mainSlots = Array.from({ length: mainLayers }, (_, slot) => {
     const empty = slot === layersPerStateGroup;
-    const targetLayer = empty ? 92 : slot * 4 + 3;
     const collapse = slot === 3
       ? '<button id="collapse-middle-slots" type="button" class="slot-collapse" data-layout-panel="middle-slots" aria-controls="middle-slots" aria-expanded="true" aria-label="收起第 3–22 行">收起</button>'
       : '';
-    return `<tr><th scope="row">第 ${slot} 行${collapse}</th><td class="mla">MLA 第 ${targetLayer} 层</td>${groups.map((group) => empty
-      ? '<td class="empty">空槽</td>' : `<td class="kda">KDA 第 ${slot * 4 + group} 层</td>`).join('')}</tr>`;
+    return `<tr><th scope="row">第 ${slot} 行${collapse}</th><td class="mla">MLA 第 ${mlaLayer(slot)} 层</td>${groups.map((group) => empty
+      ? '<td class="empty">空槽</td>' : `<td class="kda">KDA 第 ${kdaLayer(slot, group)} 层</td>`).join('')}</tr>`;
   });
   const sideRow = (name, layers, kind, text) => `<tr><th scope="row">${name} 区 × ${layers} 层</th><td class="${kind}">${text}</td>${groups.map(() => '<td class="empty">预留空页</td>').join('')}</tr>`;
   byId('layout-caption').innerHTML = `${lengths[selected]} · ${topology(current)} · ${weightLabel(current.weight)} · ${describe(current)} · block ${blockInputPrefix(value)}<strong>${value.localBlock} token / 卡</strong> · ${geometryEvidence(value, current)}`;
@@ -135,6 +137,52 @@ function renderLayout() {
       <tr><th scope="row">Draft</th><td>${current.spec ? draftLayers : 0} × ${fmt.format(pages.draft)} B</td><td>${memory(regions.draft)}</td></tr>
     </tbody></table></div>
     <p class="caption">MLA 历史块数按逻辑覆盖取整，投机预留受本档 <code>max-model-len</code> 限制。KDA 每组常驻 1 个运行状态块，RecoverSSM 关闭时再计 <code>spec_num</code> 个投机状态块。</p>`;
+}
+
+function openLayoutVisual() {
+  if (layoutVisual.open) return;
+  const value = calculate(inputs[selected], current);
+  const { historyIds, stateCopies, pages } = value;
+  const pools = [{ label: 'MLA 历史', count: historyIds, start: 0 }];
+  for (let group = 0; group < stateGroups; group++) {
+    pools.push({ label: `KDA 第 ${group + 1} 组`, count: stateCopies, start: historyIds + group * stateCopies });
+  }
+  const regions = [
+    { label: 'Main', kind: 'mla', bytes: pages.main, layers: mainLayers },
+    { label: 'Indexer', kind: 'indexer', bytes: pages.index, layers: mainLayers },
+  ];
+  if (pages.draft) regions.push({ label: 'Draft', kind: 'draft', bytes: pages.draft, layers: draftLayers });
+
+  const strip = (pool, kind, label) => `<div class="visual-block-group"><small>${label}</small>
+    <div class="visual-block-strip" role="img" aria-label="${label}，${pool.count} 块，编号 ${pool.start} 至 ${pool.start + pool.count - 1}${kind === 'kda' ? `，1 个运行状态块${pool.count > 1 ? `，${pool.count - 1} 个投机状态块` : ''}` : ''}">
+    ${Array.from({ length: pool.count }, (_, index) => {
+      const id = pool.start + index;
+      const usage = kind === 'kda' ? (index ? '投机状态' : '运行状态') : label;
+      const scratch = kind === 'kda' && index ? ' speculative' : '';
+      return `<span class="visual-block ${kind}${scratch}" title="块 ${id} · ${usage}" aria-hidden="true">${id}</span>`;
+    }).join('')}</div></div>`;
+
+  byId('layout-visual-content').innerHTML = `
+    <p class="caption">${lengths[selected]} · ${topology(current)} · ${describe(current)} · ${value.localBlock} token / 卡</p>
+    <p id="visual-block-guide" class="caption">每个方格是一块。各区域各画前两行，同一列使用相同的块编号。编号为本图示意，按缓存组排列。斜纹表示为该编号预留的空页。</p>
+    <div class="visual-block-nav" role="group" aria-label="跳到缓存组">${pools.map((pool, group) => `<button type="button" data-block-group="${group}">${pool.label} <span>· ${pool.count} 块</span></button>`).join('')}</div>
+    <div class="scroll visual-block-scroll" tabindex="0" role="region" aria-label="缓存块图，可横向滚动">
+      <table class="visual-block-map" aria-describedby="visual-block-guide">
+        <thead><tr><th scope="col">存储行（L）</th>${pools.map((pool) => `<th scope="col">${pool.label}<small>${pool.count} 块</small></th>`).join('')}</tr></thead>
+        ${regions.map((region) => `<tbody>${[0, 1].map((slot) => `<tr>
+          <th scope="row">${region.label} · 行 ${slot}<small>共 ${region.layers} 行 · ${fmt.format(region.bytes)} B / 块</small></th>
+          <td>${strip(pools[0], region.kind, region.kind === 'draft' ? 'Draft MLA KV' : `模型第 ${mlaLayer(slot)} 层`)}</td>
+          ${pools.slice(1).map((pool, group) => `<td>${region.kind === 'mla'
+            ? strip(pool, 'kda', `模型第 ${kdaLayer(slot, group)} 层`)
+            : strip(pool, 'empty', '预留空页')}</td>`).join('')}
+        </tr>`).join('')}</tbody>`).join('')}
+      </table>
+    </div>
+    ${stateCopies > 1 ? '<p class="caption">KDA 每组首块保存运行状态，虚线边框标出投机状态块。</p>' : ''}
+    ${pages.draft ? '' : '<p class="caption">DSpark 已关闭，当前配置没有 Draft 区。</p>'}
+    <details class="visual-block-detail"><summary>查看 MLA 与 KDA 单块内部的字节比例</summary>${renderBlockZoom(value, current.dcp)}</details>`;
+  layoutVisual.scrollTop = 0;
+  layoutVisual.showModal();
 }
 
 function renderBlockZoom({ coverage, pages, localBlock, requestedBlock, upstreamQuantumBytes, alignmentMultiple }, dcp) {
@@ -168,17 +216,40 @@ function renderBlockZoom({ coverage, pages, localBlock, requestedBlock, upstream
     <div class="byte-label"><strong>KDA 对齐页</strong><span>${fmt.format(pages.state)} B 状态 + ${fmt.format(pages.padding)} B padding</span></div>
     ${track('KDA 对齐页', kdaParts)}
     <div class="byte-legend">${kdaParts.map(({ label, bytes, css }) => `<span><i class="${css}" aria-hidden="true"></i>${label} ${fmt.format(bytes)} B</span>`).join('')}</div>
-    <p id="byte-readout" class="caption" aria-live="polite">点击任意分段查看页内字节偏移。</p>
+    <p data-byte-readout class="caption" aria-live="polite">点击任意分段查看页内字节偏移。</p>
     <p class="caption">两行使用同一字节标尺。KDA 对齐到单卡 MLA 的整页宽度 ${fmt.format(pages.main)} B。</p>
   </div>`;
 }
 
-layout.addEventListener('click', (event) => {
-  const segment = event.target.closest('[data-byte-caption]');
+function showByteOffset(target) {
+  const segment = target.closest('[data-byte-caption]');
   if (segment) {
-    byId('byte-readout').textContent = segment.dataset.byteCaption;
-    return;
+    segment.closest('.block-zoom').querySelector('[data-byte-readout]').textContent = segment.dataset.byteCaption;
   }
+  return Boolean(segment);
+}
+
+document.querySelector('.layout-visual-link').addEventListener('click', (event) => {
+  if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  openLayoutVisual();
+});
+
+layoutVisual.addEventListener('click', (event) => {
+  if (showByteOffset(event.target)) return;
+  const jump = event.target.closest('[data-block-group]');
+  if (!jump) return;
+  const scroller = layoutVisual.querySelector('.visual-block-scroll');
+  const table = scroller.querySelector('table');
+  const column = Number(jump.dataset.blockGroup) + 1;
+  for (const cell of table.querySelectorAll('.visual-column-selected')) cell.classList.remove('visual-column-selected');
+  for (const row of table.rows) row.cells[column].classList.add('visual-column-selected');
+  const headers = table.tHead.rows[0].cells;
+  scroller.scrollLeft = headers[column].offsetLeft - headers[0].offsetWidth;
+});
+
+layout.addEventListener('click', (event) => {
+  if (showByteOffset(event.target)) return;
   const button = event.target.closest('[data-layout-panel]');
   if (!button) return;
   const panel = byId(button.dataset.layoutPanel);
@@ -221,3 +292,7 @@ byId('reset').addEventListener('click', () => {
 });
 
 selectPlatform();
+if (location.hash === '#layout-visual') openLayoutVisual();
+window.addEventListener('hashchange', () => {
+  if (location.hash === '#layout-visual') openLayoutVisual();
+});

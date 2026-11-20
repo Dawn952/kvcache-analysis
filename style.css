@@ -333,6 +333,114 @@ dialog::backdrop {
   gap: .75rem;
 }
 
+.layout-visual-link {
+  color: var(--accent);
+  text-underline-offset: .2em;
+}
+
+#layout-visual {
+  width: min(1200px, 100% - 1rem);
+  max-height: 92dvh;
+  padding: clamp(.75rem, 2vw, 1.4rem);
+}
+
+#layout-visual .dialog-head h2 {
+  margin: 0;
+}
+
+.visual-block-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin-bottom: .65rem;
+}
+
+.visual-block-nav button {
+  font-size: .85rem;
+}
+
+.visual-block-nav span, .visual-block-map small {
+  color: var(--muted);
+}
+
+.visual-block-scroll {
+  border: 1px solid var(--line);
+  border-radius: .55rem;
+}
+
+.visual-block-map {
+  width: max-content;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.visual-block-map th, .visual-block-map td {
+  padding: .42rem .55rem;
+  border-right: 1px solid var(--line);
+  text-align: left;
+  background: #0d1726;
+}
+
+.visual-block-map thead th, .visual-block-map tbody:nth-of-type(even) > tr > * {
+  background: #142137;
+}
+
+.visual-block-map :is(thead, tbody) > tr > .visual-column-selected {
+  background: #20364c;
+}
+
+.visual-block-map th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+
+.visual-block-map small {
+  display: block;
+  font-weight: 400;
+  margin-bottom: .25rem;
+}
+
+.visual-block-strip {
+  display: flex;
+  gap: .2rem;
+}
+
+.visual-block {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 1.7rem;
+  border: 1px solid #ffffff33;
+  border-radius: .25rem;
+  font: .75rem ui-monospace, monospace;
+}
+
+.visual-block.draft {
+  background: #47365b;
+  color: #f6e5ff;
+}
+
+.visual-block.speculative {
+  border-style: dashed;
+  border-color: #7fae9d;
+}
+
+.visual-block-detail {
+  margin-top: .85rem;
+}
+
+.visual-block-detail .block-zoom {
+  margin-top: .55rem;
+}
+
+@media (max-width: 480px) {
+  .visual-block-map th[scope="row"] small {
+    max-width: 6.5rem;
+    white-space: normal;
+  }
+}
+
 .breakdown summary {
   display: flex;
   align-items: baseline;
