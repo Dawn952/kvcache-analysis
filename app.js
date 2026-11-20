@@ -14,6 +14,8 @@ const draftDtype = byId('draft-dtype');
 const blockSize = byId('block-size');
 const results = byId('results');
 const layout = byId('layout');
+const layoutCaption = byId('layout-caption');
+const blockAdjustment = byId('block-adjustment');
 const layoutVisual = byId('layout-visual');
 const detail = byId('detail');
 let selected = 3;
@@ -95,6 +97,22 @@ function updateSelection() {
   renderLayout();
 }
 
+function renderBlockSize({ requestedBlock, localBlock, upstreamQuantumBytes, alignmentMultiple, pages }) {
+  const effective = `${localBlock} token / 卡`;
+  if (requestedBlock === localBlock) {
+    blockAdjustment.hidden = true;
+    blockAdjustment.textContent = '';
+    return effective;
+  }
+
+  const bytesPerToken = upstreamQuantumBytes / requestedBlock;
+  const doubled = alignmentMultiple > 2
+    ? `翻倍到 ${requestedBlock * 2} token 只有 ${fmt.format(upstreamQuantumBytes * 2)} B，仍然不够。`
+    : '';
+  blockAdjustment.textContent = `上游按 ${current.mlaDtype} MLA 的 ${bytesPerToken} B/token 选块。${requestedBlock} token 只提供 ${fmt.format(upstreamQuantumBytes)} B，KDA 单层状态需要 ${fmt.format(pages.state)} B。${doubled}最小够用的是 ${requestedBlock} × ${alignmentMultiple} = ${localBlock} token，选块容量为 ${fmt.format(upstreamQuantumBytes * alignmentMultiple)} B。`;
+  return `${requestedBlock} → <button type="button" class="block-adjustment-toggle" aria-controls="block-adjustment" aria-expanded="${!blockAdjustment.hidden}">${effective}</button>`;
+}
+
 function renderLayout() {
   const value = calculate(inputs[selected], current);
   const groups = Array.from({ length: stateGroups }, (_, index) => index);
@@ -109,7 +127,7 @@ function renderLayout() {
       ? '<td class="empty">空槽</td>' : `<td class="kda">KDA 第 ${kdaLayer(slot, group)} 层</td>`).join('')}</tr>`;
   });
   const sideRow = (name, layers, kind, text) => `<tr><th scope="row">${name} 区 × ${layers} 层</th><td class="${kind}">${text}</td>${groups.map(() => '<td class="empty">预留空页</td>').join('')}</tr>`;
-  byId('layout-caption').innerHTML = `${lengths[selected]} · ${topology(current)} · ${weightLabel(current.weight)} · ${describe(current)} · block ${blockInputPrefix(value)}<strong>${value.localBlock} token / 卡</strong> · ${geometryEvidence(value, current)}`;
+  layoutCaption.innerHTML = `${lengths[selected]} · ${topology(current)} · ${weightLabel(current.weight)} · ${describe(current)} · block ${renderBlockSize(value)} · ${geometryEvidence(value, current)}`;
   layout.innerHTML = `
     <div class="flow">
       <div><small>MLA 历史 blocks</small><strong>${value.historyIds} 个</strong><small>⌈${fmt.format(value.limit)} ÷ ${fmt.format(value.coverage)}⌉</small></div>
@@ -234,6 +252,13 @@ function showByteOffset(target) {
   }
   return Boolean(segment);
 }
+
+layoutCaption.addEventListener('click', (event) => {
+  const button = event.target.closest('.block-adjustment-toggle');
+  if (!button) return;
+  blockAdjustment.hidden = !blockAdjustment.hidden;
+  button.setAttribute('aria-expanded', !blockAdjustment.hidden);
+});
 
 document.querySelector('.layout-visual-link').addEventListener('click', (event) => {
   if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;

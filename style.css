@@ -598,9 +598,21 @@ dialog::backdrop {
   font-weight: 400;
 }
 
-#layout-caption strong {
+.block-adjustment-toggle {
   color: var(--accent);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
+  text-decoration: underline;
+  text-underline-offset: .2em;
+  white-space: nowrap;
+}
+
+.block-adjustment {
+  border-inline-start: 2px solid var(--accent);
+  padding-inline-start: .7rem;
 }
 
 .pool-map .block-zoom-cell {
