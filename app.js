@@ -20,8 +20,7 @@ const layoutVisual = byId('layout-visual');
 const detail = byId('detail');
 let selected = 3;
 let selectedMlaId = 0;
-let showMiddleSlots = false;
-let showBlockZoom = false;
+let showMiddleSlots = true;
 let current;
 
 const fmt = new Intl.NumberFormat('zh-CN');
@@ -150,8 +149,7 @@ function renderLayout() {
     </div>
     <div class="scroll"><table class="pool-map" aria-describedby="layout-reading-guide">
       <caption>MLA / KDA 共用区，以及独立的 Indexer / Draft 区</caption>
-      <thead><tr><th scope="col">存储行（L）</th><th scope="col">MLA 历史 · ${value.historyIds} 块${blockMarks(value.historyIds)}<button type="button" class="layout-toggle" data-layout-panel="block-zoom" aria-controls="block-zoom" aria-expanded="${showBlockZoom}">${showBlockZoom ? '收起单块细节' : '查看单块内部'}</button></th>${groups.map((group) => `<th scope="col">KDA ${group + 1} 组 · ${value.stateCopies} 块${blockMarks(value.stateCopies)}</th>`).join('')}</tr></thead>
-      <tbody id="block-zoom" ${showBlockZoom ? '' : 'hidden'}><tr><td colspan="5" class="block-zoom-cell">${renderBlockZoom(value, current.dcp)}</td></tr></tbody>
+      <thead><tr><th scope="col">存储行（L）</th><th scope="col">MLA 历史 · ${value.historyIds} 块${blockMarks(value.historyIds)}</th>${groups.map((group) => `<th scope="col">KDA ${group + 1} 组 · ${value.stateCopies} 块${blockMarks(value.stateCopies)}</th>`).join('')}</tr></thead>
       <tbody>${mainSlots.slice(0, 3).join('')}<tr id="middle-slots-placeholder" ${showMiddleSlots ? 'hidden' : ''}><th scope="row">第 3–22 行</th><td colspan="4" class="empty"><button id="expand-middle-slots" type="button" class="layout-toggle" data-layout-panel="middle-slots" aria-controls="middle-slots" aria-expanded="false">展开第 3–22 行</button></td></tr></tbody>
       <tbody id="middle-slots" ${showMiddleSlots ? '' : 'hidden'}>${mainSlots.slice(3, -1).join('')}</tbody>
       <tbody>${mainSlots.at(-1)}</tbody>
@@ -234,7 +232,7 @@ function renderLayoutVisual(value) {
     </div>
     <p class="caption">各区域只画前两行。表格按请求顺序和缓存组排列，分到的池 block ID 可以跳号。斜纹是预留空页。${stateCopies > 1 ? 'KDA 中的虚线格表示投机状态。' : ''}</p>
     ${pages.draft ? '' : '<p class="caption">DSpark 已关闭，当前配置没有 Draft 区。</p>'}
-    <details class="visual-block-detail"><summary>查看 MLA 与 KDA 单个 block 内部的字节比例</summary>${renderBlockZoom(value, current.dcp)}</details>`;
+    <details class="visual-block-detail" open><summary>MLA 与 KDA 单个 block 内部的字节比例</summary>${renderBlockZoom(value, current.dcp)}</details>`;
   layoutVisual.querySelector('.visual-block-scroll').scrollLeft = scrollLeft;
 }
 
@@ -345,21 +343,11 @@ layoutVisual.addEventListener('click', (event) => {
 });
 
 layout.addEventListener('click', (event) => {
-  if (showByteOffset(event.target)) return;
-  const button = event.target.closest('[data-layout-panel]');
-  if (!button) return;
-  const panel = byId(button.dataset.layoutPanel);
-  const expanded = panel.hidden;
-  panel.hidden = !expanded;
-  if (panel.id === 'middle-slots') {
-    showMiddleSlots = expanded;
-    byId('middle-slots-placeholder').hidden = expanded;
-    byId(expanded ? 'collapse-middle-slots' : 'expand-middle-slots').focus();
-  } else {
-    showBlockZoom = expanded;
-    button.setAttribute('aria-expanded', expanded);
-    button.textContent = expanded ? '收起单块细节' : '查看单块内部';
-  }
+  if (!event.target.closest('[data-layout-panel="middle-slots"]')) return;
+  showMiddleSlots = !showMiddleSlots;
+  byId('middle-slots').hidden = !showMiddleSlots;
+  byId('middle-slots-placeholder').hidden = showMiddleSlots;
+  byId(showMiddleSlots ? 'collapse-middle-slots' : 'expand-middle-slots').focus();
 });
 
 function openDetail(row) {

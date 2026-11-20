@@ -247,10 +247,6 @@ thead th {
   color: var(--accent);
 }
 
-.results-hint {
-  margin: .65rem 0 0;
-}
-
 .value,.length {
   background: transparent;
   border-color: transparent;
@@ -259,6 +255,8 @@ thead th {
 
 .value {
   color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: .2em;
 }
 
 .flow {
@@ -632,12 +630,6 @@ dialog::backdrop {
 .inline-explanation {
   border-inline-start: 2px solid var(--accent);
   padding-inline-start: .7rem;
-}
-
-.pool-map .block-zoom-cell {
-  border-right: 0;
-  padding: .7rem 0;
-  white-space: normal;
 }
 
 .block-zoom {

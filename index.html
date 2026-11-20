@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kimi-K3.1 Pro KVCache 对比台</title>
-<link rel="stylesheet" href="style.css?v=24">
+<link rel="stylesheet" href="style.css?v=25">
 <main>
   <header>
     <p class="eyebrow">vLLM ASCEND / DECODE</p>
@@ -43,7 +43,6 @@
       <thead><tr><th scope="col">max-model-len</th></tr></thead>
       <tbody></tbody>
     </table></div>
-    <p class="caption results-hint">点击显存值查看明细。</p>
   </section>
 
   <section aria-labelledby="layout-title" id="cache-layout">
@@ -52,7 +51,7 @@
     <p id="block-adjustment" class="caption inline-explanation" hidden></p>
     <div id="layout-summary"></div>
     <div id="layout-visual"></div>
-    <details class="visual-block-detail">
+    <details class="visual-block-detail" open>
       <summary>查看完整层表与显存分项</summary>
       <div id="layout"></div>
     </details>
@@ -82,5 +81,5 @@
   <div id="detail-rows"></div>
 </dialog>
 <script src="model.js?v=16" defer></script>
-<script src="app.js?v=27" defer></script>
+<script src="app.js?v=28" defer></script>
 </html>
