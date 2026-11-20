@@ -138,6 +138,8 @@ select:disabled {
 }
 
 .option-groups fieldset {
+  display: grid;
+  align-items: center;
   min-inline-size: 0;
   margin: 0;
   padding: .6rem .75rem .8rem;
@@ -155,6 +157,7 @@ select:disabled {
 .option-fields {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   align-items: end;
   gap: .65rem .8rem;
   font-size: .9rem;
@@ -164,6 +167,7 @@ select:disabled {
   display: grid;
   gap: .3rem;
   color: var(--muted);
+  text-align: center;
 }
 
 .option-fields .option-toggle {
