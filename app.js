@@ -61,7 +61,10 @@ function renderLayout() {
   const mainSlots = Array.from({ length: mainLayers }, (_, slot) => {
     const empty = slot === layersPerStateGroup;
     const targetLayer = empty ? 92 : slot * 4 + 3;
-    return `<tr><th scope="row">L 槽 ${slot}</th><td class="mla">MLA ${targetLayer}</td>${groups.map((group) => empty
+    const collapse = slot === 3
+      ? '<button id="collapse-middle-slots" type="button" class="slot-collapse" data-layout-panel="middle-slots" aria-controls="middle-slots" aria-expanded="true" aria-label="收起中间 20 个槽位">收起</button>'
+      : '';
+    return `<tr><th scope="row">L 槽 ${slot}${collapse}</th><td class="mla">MLA ${targetLayer}</td>${groups.map((group) => empty
       ? '<td class="empty">空槽</td>' : `<td class="kda">KDA ${slot * 4 + group}</td>`).join('')}</tr>`;
   });
   const sideRow = (name, layers, kind, text) => `<tr><th scope="row">${name} 区 × ${layers} 层</th><td class="${kind}">${text}</td>${groups.map(() => '<td class="empty">预留空页</td>').join('')}</tr>`;
@@ -79,7 +82,7 @@ function renderLayout() {
       <caption>Main 区的 MLA / KDA 叠放，以及独立的 Indexer / Draft 区</caption>
       <thead><tr><th scope="col">L 轴 · 物理层槽</th><th scope="col">MLA 历史 · ${value.historyIds} ID${blockMarks(value.historyIds)}<button type="button" class="layout-toggle" data-layout-panel="block-zoom" aria-controls="block-zoom" aria-expanded="${showBlockZoom}">${showBlockZoom ? '收起 B 轴细节' : '放大 B 轴 block'}</button></th>${groups.map((group) => `<th scope="col">KDA ${group + 1} 组 · ${value.stateCopies} ID${blockMarks(value.stateCopies)}</th>`).join('')}</tr></thead>
       <tbody id="block-zoom" ${showBlockZoom ? '' : 'hidden'}><tr><td colspan="5" class="block-zoom-cell">${renderBlockZoom(value, current.dcp)}</td></tr></tbody>
-      <tbody>${mainSlots.slice(0, 3).join('')}<tr><th scope="row">L 槽 3–22</th><td colspan="4" class="empty"><button type="button" class="layout-toggle" data-layout-panel="middle-slots" aria-controls="middle-slots" aria-expanded="${showMiddleSlots}">${showMiddleSlots ? '收起中间 20 个槽位' : '展开中间 20 个槽位'}</button></td></tr></tbody>
+      <tbody>${mainSlots.slice(0, 3).join('')}<tr id="middle-slots-placeholder" ${showMiddleSlots ? 'hidden' : ''}><th scope="row">L 槽 3–22</th><td colspan="4" class="empty"><button id="expand-middle-slots" type="button" class="layout-toggle" data-layout-panel="middle-slots" aria-controls="middle-slots" aria-expanded="false">展开中间 20 个槽位</button></td></tr></tbody>
       <tbody id="middle-slots" ${showMiddleSlots ? '' : 'hidden'}>${mainSlots.slice(3, -1).join('')}</tbody>
       <tbody>${mainSlots.at(-1)}</tbody>
       <tbody>${sideRow('Indexer', mainLayers, 'indexer', 'FP8 K + scale')}${current.spec ? sideRow('Draft', draftLayers, 'draft', 'BF16 MLA KV') : ''}</tbody>
@@ -139,12 +142,13 @@ layout.addEventListener('click', (event) => {
   const panel = byId(button.dataset.layoutPanel);
   const expanded = panel.hidden;
   panel.hidden = !expanded;
-  button.setAttribute('aria-expanded', expanded);
   if (panel.id === 'middle-slots') {
     showMiddleSlots = expanded;
-    button.textContent = `${expanded ? '收起' : '展开'}中间 20 个槽位`;
+    byId('middle-slots-placeholder').hidden = expanded;
+    byId(expanded ? 'collapse-middle-slots' : 'expand-middle-slots').focus();
   } else {
     showBlockZoom = expanded;
+    button.setAttribute('aria-expanded', expanded);
     button.textContent = expanded ? '收起 B 轴细节' : '放大 B 轴 block';
   }
 });
