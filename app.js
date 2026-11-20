@@ -41,7 +41,8 @@ function render() {
   const alternateDcp = current.dcp === 8 ? 1 : 8;
   comparisons = [current, { ...current, recover: !current.recover }, { ...current, spec: 0 },
     { ...current, spec: 3 }, { ...current, dcp: alternateDcp }];
-  const headings = ['当前配置', `RecoverSSM ${current.recover ? '关' : '开'}`, 'DSpark 关闭', 'DSpark 3 token', topology(alternateDcp)];
+  const alternateLabel = alternateDcp === 1 ? 'DP4 / TP8（推算）' : topology(alternateDcp);
+  const headings = ['当前配置', `RecoverSSM ${current.recover ? '关' : '开'}`, 'DSpark 关闭', 'DSpark 3 token', alternateLabel];
   document.querySelectorAll('.config-heading').forEach((heading, column) => {
     const { bytesPerId } = calculate(inputs[0], comparisons[column]);
     heading.innerHTML = `${headings[column]}<small>${memory(bytesPerId)} / block</small>`;
@@ -53,9 +54,6 @@ function render() {
     }).join('');
     return `<tr><th scope="row"><button type="button" class="length" data-row="${index}" aria-pressed="${index === selected}">${lengths[index]}</button></th><td>1k</td><td>${fmt.format(input + Ki)}</td>${cells}</tr>`;
   }).join('');
-  byId('scenario-note').textContent = geometry.localBlock === defaultBlock
-    ? 'DCP8 的 1536-token 页几何来自历史启动（当时传入 768）。DP4 / TP8 按 DCP=1 推算。'
-    : '该页几何按源码推算，尚无部署实测。DCP8 启动还需校验 cp_kv_cache_interleave_size。';
   renderLayout();
 }
 
