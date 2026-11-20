@@ -191,7 +191,10 @@ function openLayoutVisual() {
     <div class="visual-block-nav" role="group" aria-label="跳到缓存组">${pools.map((pool, group) => `<button type="button" data-block-group="${group}">${pool.label} <span>· ${pool.count} 个 block</span></button>`).join('')}</div>
     <div class="scroll visual-block-scroll" tabindex="0" role="region" aria-label="缓存 block 图，可横向滚动">
       <table class="visual-block-map" aria-describedby="visual-block-guide">
-        <thead><tr><th scope="col">存储行（L）</th>${pools.map((pool) => `<th scope="col">${pool.label}<small>${pool.count} 个 block</small></th>`).join('')}</tr></thead>
+        <thead><tr><th scope="col">存储行（L）</th>
+          <th scope="col">${pools[0].label}<small title="请求 token 数 ÷ 每个逻辑 block 覆盖的 token 数，向上取整">⌈${fmt.format(limit)} ÷ ${fmt.format(coverage)}⌉ = ${historyIds} 个 block</small></th>
+          ${pools.slice(1).map((pool) => `<th scope="col">${pool.label}<small>${pool.count} 个 block</small></th>`).join('')}
+        </tr></thead>
         ${regions.map((region) => `<tbody>${[0, 1].map((slot) => `<tr>
           <th scope="row">${region.label} · 行 ${slot}<small>共 ${region.layers} 行 · ${fmt.format(region.bytes)} 字节 / block</small></th>
           <td>${strip(pools[0], region.kind, region.kind === 'draft' ? 'Draft MLA KV' : `模型第 ${mlaLayer(slot)} 层`)}</td>
@@ -205,7 +208,7 @@ function openLayoutVisual() {
     ${pages.draft ? '' : '<p class="caption">DSpark 已关闭，当前配置没有 Draft 区。</p>'}
     <details class="visual-block-detail">
       <summary>block 数量和排布是怎么算的？</summary>
-      <p class="caption"><strong>MLA 申请数。</strong> 当前请求的 ${fmt.format(limit)} token ÷ 每个逻辑 block 覆盖的 ${fmt.format(coverage)} token，向上取整得到 ${historyIds} 个。MLA 缓存组申请这批 block ID，各 MLA 层共用这批编号，每层在本卡为每个 ID 存 ${fmt.format(localBlock)} token。</p>
+      <p class="caption"><strong>MLA block ID。</strong> 各 MLA 层共用这批编号。每层每个 block 在本卡可存 ${fmt.format(localBlock)} token。</p>
       <p class="caption"><strong>为什么一行有 MLA 和 KDA？</strong> 行号表示物理存储位置。第 0 行中，第 ${mlaLayer(0)} 层的 MLA 和第 0、1、2 层的 KDA 共用同一行，分别使用各自的 block ID。</p>
       <p class="caption"><strong>连续排布。</strong> MLA / KDA 共用区按 <code>L → B → N → H → C</code> 排布。固定存储行 L 后，整池的 block 按实际 block ID（B）递增连续存放，步长是 ${fmt.format(pages.main)} 字节。同一请求分到的 ID 可以不相邻。</p>
     </details>
