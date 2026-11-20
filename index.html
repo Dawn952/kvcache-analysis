@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KVCache 对比台</title>
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 <main>
   <header>
     <p class="eyebrow">vLLM ASCEND / DECODE</p>
@@ -49,7 +49,7 @@
       <p><strong>本地页与逻辑覆盖。</strong> 历史部署 CLI block size 为 768，有效本地 block size 为 1536。DCP8 下一个 MLA 历史 ID 覆盖 12288 个全局 token。KDA 的 96 个头按 TP8 切成每卡 12 个，状态数组沿用各自的形状。</p>
       <p>模型按独享请求、无前缀复用计算。投机预留用于计算页数。<code>max_model_len</code> 列仍是输入与可生成预算之和。全池 null ID、模型权重、图内存和按引擎槽数分配的 RecoverSSM records 独立于该请求的 block 计费。</p>
       <p>本页固定采用 A5 Atlas 的 1536-token 页几何。改变开关时重算页数、状态及池分项。实际启动时如发生重新定页，应当用对应部署的 cache spec 校准。两份基础状态页采用容量规划上界。</p>
-      <p class="sources"><a href="https://dawn952.github.io/kimi-k31-a5-analysis/">A5 Atlas</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/models/kimi_k3/paired_sfa_cache.py">物理页和步长</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/models/kimi_k3/cache_config.py">KDA 分组源码</a><a href="https://github.com/vllm-project/vllm-ascend/pull/21549">RecoverSSM</a></p>
+      <p class="sources"><a href="https://dawn952.github.io/kimi-k31-a5-analysis/">A5 Atlas</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/models/kimi_k3/paired_sfa_cache.py">物理页和步长</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/attention/sfa_v1.py#L412-L414">SFA kernel 小块</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/models/kimi_k3/cache_config.py">KDA 分组源码</a><a href="https://github.com/vllm-project/vllm-ascend/pull/21549">RecoverSSM</a></p>
     </details>
   </section>
 </main>
@@ -58,5 +58,5 @@
   <div id="detail-rows"></div>
 </dialog>
 <script src="model.js?v=2" defer></script>
-<script src="app.js?v=2" defer></script>
+<script src="app.js?v=3" defer></script>
 </html>

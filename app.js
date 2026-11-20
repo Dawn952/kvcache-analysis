@@ -7,9 +7,12 @@ const recover = byId('recover');
 const draft = byId('draft');
 const spec = byId('spec');
 const results = byId('results');
+const layout = byId('layout');
 const detail = byId('detail');
 let selected = 3;
 let layoutColumn = 0;
+let showMiddleSlots = false;
+let showBlockZoom = false;
 let comparisons;
 
 const fmt = new Intl.NumberFormat('zh-CN');
@@ -18,6 +21,7 @@ const memory = (bytes) => bytes >= 2 ** 30
   : `${(bytes / 2 ** 20).toFixed(2)} MiB`;
 const lengths = ['4k', '16k', '64k', '128k', '1M − 1k'];
 const topology = (dcp) => dcp === 8 ? 'DP4 / DCP8 / TP8' : 'DP4 / TP8';
+const mlaKernelBlock = 128;
 
 function describe({ recover: enabled, spec: count }) {
   return `RecoverSSM ${enabled ? '开' : '关'} · DSpark ${count ? `${count} token` : '关'}`;
@@ -62,7 +66,7 @@ function renderLayout() {
   });
   const sideRow = (name, layers, kind, text) => `<tr><th scope="row">${name} 区 × ${layers} 层</th><td class="${kind}">${text}</td>${groups.map(() => '<td class="empty">预留空页</td>').join('')}</tr>`;
   byId('layout-caption').textContent = `${lengths[selected]} + 1k · ${topology(current.dcp)} · ${describe(current)}`;
-  byId('layout').innerHTML = `
+  layout.innerHTML = `
     <div class="flow">
       <div><small>MLA 历史 blocks</small><strong>${value.historyIds} 个</strong><small>⌈(${fmt.format(value.limit)} + ${current.spec}) ÷ ${fmt.format(value.coverage)}⌉</small></div>
       <div><small>KDA 状态 blocks</small><strong>3 组 × ${value.stateCopies} 个</strong><small>每组 23 层，持有各自的 ID</small></div>
@@ -73,13 +77,13 @@ function renderLayout() {
     <p class="caption">沿一行看同一物理层槽里的 B 轴。每列展开为所示数量的互斥池 ID。单元格标注模型层号。</p>
     <div class="scroll"><table class="pool-map">
       <caption>Main 区的 MLA / KDA 叠放，以及独立的 Indexer / Draft 区</caption>
-      <thead><tr><th scope="col">L 轴 · 物理层槽</th><th scope="col">MLA 历史 · ${value.historyIds} ID${blockMarks(value.historyIds)}</th>${groups.map((group) => `<th scope="col">KDA ${group + 1} 组 · ${value.stateCopies} ID${blockMarks(value.stateCopies)}</th>`).join('')}</tr></thead>
-      <tbody>${mainSlots.slice(0, 3).join('')}<tr><th scope="row">L 槽 3–22</th><td colspan="4" class="empty">展开下方逐层表查看中间 20 个槽位</td></tr>${mainSlots.at(-1)}</tbody>
+      <thead><tr><th scope="col">L 轴 · 物理层槽</th><th scope="col">MLA 历史 · ${value.historyIds} ID${blockMarks(value.historyIds)}<button type="button" class="layout-toggle" data-layout-panel="block-zoom" aria-controls="block-zoom" aria-expanded="${showBlockZoom}">${showBlockZoom ? '收起 B 轴细节' : '放大 B 轴 block'}</button></th>${groups.map((group) => `<th scope="col">KDA ${group + 1} 组 · ${value.stateCopies} ID${blockMarks(value.stateCopies)}</th>`).join('')}</tr></thead>
+      <tbody id="block-zoom" ${showBlockZoom ? '' : 'hidden'}><tr><td colspan="5" class="block-zoom-cell">${renderBlockZoom(value, current.dcp)}</td></tr></tbody>
+      <tbody>${mainSlots.slice(0, 3).join('')}<tr><th scope="row">L 槽 3–22</th><td colspan="4" class="empty"><button type="button" class="layout-toggle" data-layout-panel="middle-slots" aria-controls="middle-slots" aria-expanded="${showMiddleSlots}">${showMiddleSlots ? '收起中间 20 个槽位' : '展开中间 20 个槽位'}</button></td></tr></tbody>
+      <tbody id="middle-slots" ${showMiddleSlots ? '' : 'hidden'}>${mainSlots.slice(3, -1).join('')}</tbody>
+      <tbody>${mainSlots.at(-1)}</tbody>
       <tbody>${sideRow('Indexer', mainLayers, 'indexer', 'FP8 K + scale')}${current.spec ? sideRow('Draft', draftLayers, 'draft', 'BF16 MLA KV') : ''}</tbody>
     </table></div>
-    <details class="all-slots"><summary>查看 Main 区全部 24 个物理层槽</summary><div class="scroll"><table class="pool-map" aria-label="Main 区逐层映射">
-      <thead><tr><th scope="col">物理层槽</th><th scope="col">MLA 历史</th>${groups.map((group) => `<th scope="col">KDA ${group + 1} 组</th>`).join('')}</tr></thead><tbody>${mainSlots.join('')}</tbody>
-    </table></div></details>
     <h3>MLA 页覆盖一份 KDA 状态</h3>
     <p class="caption"><code>MLA Block ≥ KDA Block</code> 比较的是每层物理页字节。KDA 按 MLA 页宽补齐，使用相同的 block stride。</p>
     <div class="page-alignment" aria-label="MLA 页和 KDA 对齐页的字节对比">
@@ -95,6 +99,35 @@ function renderLayout() {
     </tbody></table></div>
     <p class="caption">上下文变长时，MLA 历史块数按逻辑覆盖取整。KDA 每组采用固定块数预算，按 2 个基础块的规划上界，RecoverSSM 关闭时再加 numspec 个。关闭 DSpark 会去掉每个池 ID 的 Draft 区。DCP 切换改变历史 ID 的 token 覆盖。</p>`;
 }
+
+function renderBlockZoom({ coverage, pages }, dcp) {
+  const tiles = localBlock / mlaKernelBlock;
+  const ranks = Array.from({ length: dcp }, (_, rank) => `<span>卡 ${rank} · ${fmt.format(localBlock)}</span>`).join('');
+  return `<div class="block-zoom">
+    <div><strong>调度逻辑大块 · ${fmt.format(coverage)} token</strong><span>${dcp} 卡 × ${fmt.format(localBlock)} token / 卡</span></div>
+    <div class="block-ranks" aria-hidden="true">${ranks}</div>
+    <div><strong>放大其中一张卡 · ${fmt.format(localBlock)} token 的 MLA 物理页</strong><span>${tiles} 个 kernel 小块 × ${mlaKernelBlock} token</span></div>
+    <div class="kernel-tiles" aria-hidden="true">${`<span>${mlaKernelBlock}</span>`.repeat(tiles)}</div>
+    <p><strong>对齐到单卡物理页的字节宽度。</strong> 一份 KDA 状态 ${fmt.format(pages.state)} B，加 ${fmt.format(pages.padding)} B padding，按 MLA 的 ${fmt.format(pages.main)} B 作为 block stride。</p>
+    <p class="caption">KDA 的 align 调度粒度为 ${fmt.format(localBlock)} token。KDA 物理页里存的是一个状态快照。卡的排列用于展示逻辑覆盖量。</p>
+  </div>`;
+}
+
+layout.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-layout-panel]');
+  if (!button) return;
+  const panel = byId(button.dataset.layoutPanel);
+  const expanded = panel.hidden;
+  panel.hidden = !expanded;
+  button.setAttribute('aria-expanded', expanded);
+  if (panel.id === 'middle-slots') {
+    showMiddleSlots = expanded;
+    button.textContent = `${expanded ? '收起' : '展开'}中间 20 个槽位`;
+  } else {
+    showBlockZoom = expanded;
+    button.textContent = expanded ? '收起 B 轴细节' : '放大 B 轴 block';
+  }
+});
 
 function openDetail(row, column) {
   const config = comparisons[column];
