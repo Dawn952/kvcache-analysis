@@ -432,23 +432,9 @@ dialog::backdrop {
   font-weight: 400;
 }
 
-.block-size-summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: .2rem .75rem;
-  margin: .75rem 0 .35rem;
-  color: var(--muted);
-  font-size: .9rem;
-}
-
-.block-size-summary strong {
+#layout-caption strong {
   color: var(--accent);
   font-variant-numeric: tabular-nums;
-}
-
-.block-size-summary small {
-  font-size: .875rem;
 }
 
 .pool-map .block-zoom-cell {

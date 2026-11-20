@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KVCache 对比台</title>
-<link rel="stylesheet" href="style.css?v=13">
+<link rel="stylesheet" href="style.css?v=14">
 <main>
   <header>
     <p class="eyebrow">vLLM ASCEND / DECODE</p>
@@ -26,7 +26,6 @@
       <label for="block-size"><code>--block-size</code> <select id="block-size"><option>640</option><option>1024</option><option>1408</option><option selected>1536</option></select></label>
       <button id="reset" type="button">恢复默认</button>
     </div>
-    <p id="block-size-summary" class="block-size-summary" aria-live="polite"></p>
     <p class="caption" id="cache-dtypes">D 节点 · 图模式 · 主 Attention KV / Indexer K FP8 · Draft MLA KV BF16</p>
     <p class="caption" id="native-weight-note" hidden>原生档假设 KV dtype 和分组沿用 950DT 场景，估算范围为单请求 KVCache。<a href="https://huggingface.co/moonshotai/Kimi-K3.1-Pro">Moonshot 原生权重</a></p>
   </section>
@@ -41,7 +40,7 @@
 
   <section aria-labelledby="layout-title" id="cache-layout">
     <h2 id="layout-title">Kimi-K3.1 的 LBNHC 布局</h2>
-    <p id="layout-caption" class="caption"></p>
+    <p id="layout-caption" class="caption" aria-live="polite"></p>
     <div id="layout"></div>
     <details>
       <summary>对齐原理与计算口径</summary>
@@ -68,5 +67,5 @@
   <div id="detail-rows"></div>
 </dialog>
 <script src="model.js?v=11" defer></script>
-<script src="app.js?v=13" defer></script>
+<script src="app.js?v=14" defer></script>
 </html>

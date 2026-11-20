@@ -58,8 +58,6 @@ function render() {
   const preset = platforms[current.platform];
   byId('native-weight-note').hidden = current.weight !== 'native';
   byId('cache-dtypes').textContent = `D 节点 · 图模式 · 主 Attention KV / Indexer K ${preset.cacheDtype} · Draft MLA KV ${current.spec ? 'BF16' : '关闭'}`;
-  const geometry = calculate(inputs[0], current);
-  byId('block-size-summary').innerHTML = `<span>传入 <strong>${geometry.requestedBlock}</strong> → 生效 <strong>${geometry.localBlock}</strong> token / 卡</span><small>${geometryEvidence(geometry, current)}</small>`;
   const headings = lengths.map((length, index) =>
     `<th scope="col"><button type="button" class="length" data-row="${index}">${length}</button></th>`).join('');
   const values = inputs.map((input, index) => {
@@ -95,7 +93,7 @@ function renderLayout() {
       ? '<td class="empty">空槽</td>' : `<td class="kda">KDA ${slot * 4 + group}</td>`).join('')}</tr>`;
   });
   const sideRow = (name, layers, kind, text) => `<tr><th scope="row">${name} 区 × ${layers} 层</th><td class="${kind}">${text}</td>${groups.map(() => '<td class="empty">预留空页</td>').join('')}</tr>`;
-  byId('layout-caption').textContent = `${lengths[selected]} · ${topology(current)} · ${weightLabel(current.weight)} · ${describe(current)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, current)}`;
+  byId('layout-caption').innerHTML = `${lengths[selected]} · ${topology(current)} · ${weightLabel(current.weight)} · ${describe(current)} · block ${value.requestedBlock} → <strong>${value.localBlock} token / 卡</strong> · ${geometryEvidence(value, current)}`;
   layout.innerHTML = `
     <div class="flow">
       <div><small>MLA 历史 blocks</small><strong>${value.historyIds} 个</strong><small>⌈${fmt.format(value.limit)} ÷ ${fmt.format(value.coverage)}⌉</small></div>
