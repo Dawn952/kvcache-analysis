@@ -101,10 +101,10 @@ function renderLayout() {
     const empty = slot === layersPerStateGroup;
     const targetLayer = empty ? 92 : slot * 4 + 3;
     const collapse = slot === 3
-      ? '<button id="collapse-middle-slots" type="button" class="slot-collapse" data-layout-panel="middle-slots" aria-controls="middle-slots" aria-expanded="true" aria-label="收起中间 20 个槽位">收起</button>'
+      ? '<button id="collapse-middle-slots" type="button" class="slot-collapse" data-layout-panel="middle-slots" aria-controls="middle-slots" aria-expanded="true" aria-label="收起第 3–22 行">收起</button>'
       : '';
-    return `<tr><th scope="row">L 槽 ${slot}${collapse}</th><td class="mla">MLA ${targetLayer}</td>${groups.map((group) => empty
-      ? '<td class="empty">空槽</td>' : `<td class="kda">KDA ${slot * 4 + group}</td>`).join('')}</tr>`;
+    return `<tr><th scope="row">第 ${slot} 行${collapse}</th><td class="mla">MLA 第 ${targetLayer} 层</td>${groups.map((group) => empty
+      ? '<td class="empty">空槽</td>' : `<td class="kda">KDA 第 ${slot * 4 + group} 层</td>`).join('')}</tr>`;
   });
   const sideRow = (name, layers, kind, text) => `<tr><th scope="row">${name} 区 × ${layers} 层</th><td class="${kind}">${text}</td>${groups.map(() => '<td class="empty">预留空页</td>').join('')}</tr>`;
   byId('layout-caption').innerHTML = `${lengths[selected]} · ${topology(current)} · ${weightLabel(current.weight)} · ${describe(current)} · block ${blockInputPrefix(value)}<strong>${value.localBlock} token / 卡</strong> · ${geometryEvidence(value, current)}`;
@@ -115,13 +115,15 @@ function renderLayout() {
       <div><small>一个逻辑 block 的显存 / 卡</small><strong>${memory(value.bytesPerId)}</strong><small>${fmt.format(value.bytesPerId)} B</small></div>
       <div><small>请求合计 / 卡</small><strong>${memory(value.bytes)}</strong><small>(${value.historyIds} + ${value.stateIds}) × 单 block 显存</small></div>
     </div>
-    <div class="axis-key"><code>L → B → N → H → C</code><span>物理层槽 → 池 block ID → 本地 token → KV head → 通道</span></div>
-    <p class="caption">沿一行看同一物理层槽里的 B 轴。每列展开为所示数量的互斥池 ID。单元格标注模型层号。</p>
-    <div class="scroll"><table class="pool-map">
+    <div class="axis-key" id="layout-reading-guide">
+      <div><strong>纵向看存储行（L）。</strong> 例如第 0 行存放模型第 3 层的 MLA，以及第 0、1、2 层的 KDA。</div>
+      <div><strong>横向看缓存块（B）。</strong> B 是缓存池中的块编号。同一组的各层共用一批编号，列标题显示这一组占用多少块。</div>
+    </div>
+    <div class="scroll"><table class="pool-map" aria-describedby="layout-reading-guide">
       <caption>Main 区的 MLA / KDA 叠放，以及独立的 Indexer / Draft 区</caption>
-      <thead><tr><th scope="col">L 轴 · 物理层槽</th><th scope="col">MLA 历史 · ${value.historyIds} ID${blockMarks(value.historyIds)}<button type="button" class="layout-toggle" data-layout-panel="block-zoom" aria-controls="block-zoom" aria-expanded="${showBlockZoom}">${showBlockZoom ? '收起 B 轴细节' : '放大 B 轴 block'}</button></th>${groups.map((group) => `<th scope="col">KDA ${group + 1} 组 · ${value.stateCopies} ID${blockMarks(value.stateCopies)}</th>`).join('')}</tr></thead>
+      <thead><tr><th scope="col">存储行（L）</th><th scope="col">MLA 历史 · ${value.historyIds} 块${blockMarks(value.historyIds)}<button type="button" class="layout-toggle" data-layout-panel="block-zoom" aria-controls="block-zoom" aria-expanded="${showBlockZoom}">${showBlockZoom ? '收起单块细节' : '查看单块内部'}</button></th>${groups.map((group) => `<th scope="col">KDA ${group + 1} 组 · ${value.stateCopies} 块${blockMarks(value.stateCopies)}</th>`).join('')}</tr></thead>
       <tbody id="block-zoom" ${showBlockZoom ? '' : 'hidden'}><tr><td colspan="5" class="block-zoom-cell">${renderBlockZoom(value, current.dcp)}</td></tr></tbody>
-      <tbody>${mainSlots.slice(0, 3).join('')}<tr id="middle-slots-placeholder" ${showMiddleSlots ? 'hidden' : ''}><th scope="row">L 槽 3–22</th><td colspan="4" class="empty"><button id="expand-middle-slots" type="button" class="layout-toggle" data-layout-panel="middle-slots" aria-controls="middle-slots" aria-expanded="false">展开中间 20 个槽位</button></td></tr></tbody>
+      <tbody>${mainSlots.slice(0, 3).join('')}<tr id="middle-slots-placeholder" ${showMiddleSlots ? 'hidden' : ''}><th scope="row">第 3–22 行</th><td colspan="4" class="empty"><button id="expand-middle-slots" type="button" class="layout-toggle" data-layout-panel="middle-slots" aria-controls="middle-slots" aria-expanded="false">展开第 3–22 行</button></td></tr></tbody>
       <tbody id="middle-slots" ${showMiddleSlots ? '' : 'hidden'}>${mainSlots.slice(3, -1).join('')}</tbody>
       <tbody>${mainSlots.at(-1)}</tbody>
       <tbody>${sideRow('Indexer', mainLayers, 'indexer', `${current.indexDtype} K${current.indexDtype === 'BF16' ? '' : ' + scale'}`)}${current.spec ? sideRow('Draft', draftLayers, 'draft', `${current.draftDtype} MLA KV`) : ''}</tbody>
@@ -189,7 +191,7 @@ layout.addEventListener('click', (event) => {
   } else {
     showBlockZoom = expanded;
     button.setAttribute('aria-expanded', expanded);
-    button.textContent = expanded ? '收起 B 轴细节' : '放大 B 轴 block';
+    button.textContent = expanded ? '收起单块细节' : '查看单块内部';
   }
 });
 

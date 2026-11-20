@@ -415,10 +415,9 @@ dialog::backdrop {
 }
 
 .axis-key {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .35rem 1rem;
-  align-items: center;
+  display: grid;
+  gap: .35rem;
+  margin-bottom: .85rem;
   color: var(--muted);
   background: #0d1828;
   border: 1px solid var(--line);
@@ -426,9 +425,8 @@ dialog::backdrop {
   padding: .7rem .85rem;
 }
 
-.axis-key code {
+.axis-key strong {
   color: var(--accent);
-  font-weight: 700;
 }
 
 .pool-map td {
