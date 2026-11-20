@@ -122,7 +122,7 @@ function renderLayout() {
       <div><strong>横向看缓存块（B）。</strong> B 是缓存池中的块编号。同一组的各层共用一批编号，列标题显示这一组占用多少块。</div>
     </div>
     <div class="scroll"><table class="pool-map" aria-describedby="layout-reading-guide">
-      <caption>Main 区的 MLA / KDA 叠放，以及独立的 Indexer / Draft 区</caption>
+      <caption>MLA / KDA 共用区，以及独立的 Indexer / Draft 区</caption>
       <thead><tr><th scope="col">存储行（L）</th><th scope="col">MLA 历史 · ${value.historyIds} 块${blockMarks(value.historyIds)}<button type="button" class="layout-toggle" data-layout-panel="block-zoom" aria-controls="block-zoom" aria-expanded="${showBlockZoom}">${showBlockZoom ? '收起单块细节' : '查看单块内部'}</button></th>${groups.map((group) => `<th scope="col">KDA ${group + 1} 组 · ${value.stateCopies} 块${blockMarks(value.stateCopies)}</th>`).join('')}</tr></thead>
       <tbody id="block-zoom" ${showBlockZoom ? '' : 'hidden'}><tr><td colspan="5" class="block-zoom-cell">${renderBlockZoom(value, current.dcp)}</td></tr></tbody>
       <tbody>${mainSlots.slice(0, 3).join('')}<tr id="middle-slots-placeholder" ${showMiddleSlots ? 'hidden' : ''}><th scope="row">第 3–22 行</th><td colspan="4" class="empty"><button id="expand-middle-slots" type="button" class="layout-toggle" data-layout-panel="middle-slots" aria-controls="middle-slots" aria-expanded="false">展开第 3–22 行</button></td></tr></tbody>
@@ -132,7 +132,7 @@ function renderLayout() {
     </table></div>
     <h3>一个池 block 的显存怎么算</h3>
     <div class="scroll"><table class="pool-map" aria-label="单池 block 显存分项"><thead><tr><th scope="col">区域</th><th scope="col">物理页数 × 每页字节</th><th scope="col">每个池 ID</th></tr></thead><tbody>
-      <tr><th scope="row">Main</th><td>${mainLayers} × ${fmt.format(pages.main)} B</td><td>${memory(regions.main)}</td></tr>
+      <tr><th scope="row">MLA / KDA</th><td>${mainLayers} × ${fmt.format(pages.main)} B</td><td>${memory(regions.main)}</td></tr>
       <tr><th scope="row">Indexer</th><td>${mainLayers} × ${fmt.format(pages.index)} B</td><td>${memory(regions.index)}</td></tr>
       <tr><th scope="row">Draft</th><td>${current.spec ? draftLayers : 0} × ${fmt.format(pages.draft)} B</td><td>${memory(regions.draft)}</td></tr>
     </tbody></table></div>
@@ -148,7 +148,7 @@ function openLayoutVisual() {
     pools.push({ label: `KDA 第 ${group + 1} 组`, count: stateCopies, start: historyIds + group * stateCopies });
   }
   const regions = [
-    { label: 'Main', kind: 'mla', bytes: pages.main, layers: mainLayers },
+    { label: 'MLA / KDA', kind: 'mla', bytes: pages.main, layers: mainLayers },
     { label: 'Indexer', kind: 'indexer', bytes: pages.index, layers: mainLayers },
   ];
   if (pages.draft) regions.push({ label: 'Draft', kind: 'draft', bytes: pages.draft, layers: draftLayers });
@@ -183,8 +183,8 @@ function openLayoutVisual() {
     <details class="visual-block-detail">
       <summary>block 数量和排布是怎么算的？</summary>
       <p class="caption"><strong>MLA 申请数。</strong> 当前请求的 ${fmt.format(limit)} token ÷ 每个逻辑 block 覆盖的 ${fmt.format(coverage)} token，向上取整得到 ${historyIds} 个。MLA 缓存组申请这批 block ID，各 MLA 层共用这批编号，每层在本卡为每个 ID 存 ${fmt.format(localBlock)} token。</p>
-      <p class="caption"><strong>为什么一行有 MLA 和 KDA？</strong> Main 区的行号是物理存储位置。第 0 行中，第 ${mlaLayer(0)} 层的 MLA 和第 0、1、2 层的 KDA 共用同一行，分别使用各自的 block ID。</p>
-      <p class="caption"><strong>连续排布。</strong> Main 区按 <code>L → B → N → H → C</code> 排布。固定存储行 L 后，整池的 block 按实际 block ID（B）递增连续存放，步长是 ${fmt.format(pages.main)} 字节。同一请求分到的 ID 可以不相邻。</p>
+      <p class="caption"><strong>为什么一行有 MLA 和 KDA？</strong> 行号表示物理存储位置。第 0 行中，第 ${mlaLayer(0)} 层的 MLA 和第 0、1、2 层的 KDA 共用同一行，分别使用各自的 block ID。</p>
+      <p class="caption"><strong>连续排布。</strong> MLA / KDA 共用区按 <code>L → B → N → H → C</code> 排布。固定存储行 L 后，整池的 block 按实际 block ID（B）递增连续存放，步长是 ${fmt.format(pages.main)} 字节。同一请求分到的 ID 可以不相邻。</p>
     </details>
     <details class="visual-block-detail"><summary>查看 MLA 与 KDA 单个 block 内部的字节比例</summary>${renderBlockZoom(value, current.dcp)}</details>`;
   layoutVisual.scrollTop = 0;

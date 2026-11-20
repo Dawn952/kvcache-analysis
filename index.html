@@ -52,7 +52,7 @@
     <div id="layout"></div>
     <details>
       <summary>对齐原理与计算口径</summary>
-      <p><strong>地址顺序。</strong> <code>L → B → N → H → C</code> 分别对应存储行（物理层槽）、池内 block ID、本卡页内 token、存储的 KV head 和打包后的通道。Main 区同一存储行的 block 连续，<code>offset(L,B) = L × 池总 block 数 × 主 MLA 页字节 + B × 主 MLA 页字节</code>。图中只展示当前请求占用的块。分配器用整个池的 block 数计算相邻存储行的间距。</p>
+      <p><strong>地址顺序。</strong> <code>L → B → N → H → C</code> 分别对应存储行（物理层槽）、池内 block ID、本卡页内 token、存储的 KV head 和打包后的通道。MLA / KDA 共用区里，同一存储行的 block 连续，<code>offset(L,B) = L × 池总 block 数 × 主 MLA 页字节 + B × 主 MLA 页字节</code>。图中只展示当前请求占用的块。分配器用整个池的 block 数计算相邻存储行的间距。</p>
       <p><strong>页与 ID。</strong> KDA 沿用 MLA 页的步长。三组 KDA 各自有 block table，使用互斥的池 ID，同一组的 23 层使用相同的一串 ID。Indexer 和 draft 有独立的物理区域及页宽，也按池 ID 寻址。</p>
       <p><strong>先选 token 块，再算物理页。</strong> 量化 MLA 按 576 B/token 选块，按 656 B/token 打包。BF16 MLA 的两个步骤都按 1152 B/token 计算。Indexer 的 INT8、FP8、BF16 分别用 130、132、256 B/token。DCP 逻辑覆盖等于生效 block size × DCP。KDA 的 96 个头按 TP 切分，TP8 每卡 12 个，TP16 每卡 6 个。</p>
       <p><code>spec_num</code> 对应 vLLM 的 <code>num_speculative_tokens</code>。Draft BF16 使用 1152 B/token。Draft C8 是按 576 B/token 的容量估算，静态 scale 另计，算子可用性和部署未验证。<a href="https://dawn952.github.io/kimi-k31-a5-analysis/">A5 Atlas 的 DSpark C8 容量口径</a></p>
@@ -80,5 +80,5 @@
   <div id="detail-rows"></div>
 </dialog>
 <script src="model.js?v=16" defer></script>
-<script src="app.js?v=20" defer></script>
+<script src="app.js?v=21" defer></script>
 </html>
