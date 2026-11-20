@@ -161,18 +161,19 @@ thead th {
   background: #0e1827;
 }
 
-.results-panel {
-  max-width: 28rem;
-}
-
 .results-table {
   table-layout: fixed;
+  min-width: 36rem;
+}
+
+.results-table thead th:first-child {
+  width: 20%;
 }
 
 .results-table th, .results-table td {
   text-align: center;
   vertical-align: middle;
-  padding: .35rem .45rem;
+  padding: .45rem .35rem;
 }
 
 .results-table .value, .results-table .length {
@@ -182,8 +183,12 @@ thead th {
   text-align: center;
 }
 
-tbody tr:has([aria-pressed=true]) {
+.results-table .selected-length {
   background: #152d42;
+}
+
+.results-table thead .selected-length {
+  box-shadow: inset 0 2px var(--accent);
 }
 
 .value,.length {

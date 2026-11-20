@@ -60,10 +60,23 @@ function render() {
   byId('cache-dtypes').textContent = `D 节点 · 图模式 · 主 Attention KV / Indexer K ${preset.cacheDtype} · Draft MLA KV ${current.spec ? 'BF16' : '关闭'}`;
   const geometry = calculate(inputs[0], current);
   byId('block-size-summary').innerHTML = `<span>传入 <strong>${geometry.requestedBlock}</strong> → 生效 <strong>${geometry.localBlock}</strong> token / 卡</span><small>${geometryEvidence(geometry, current)}</small>`;
-  results.innerHTML = inputs.map((input, index) => {
+  const headings = lengths.map((length, index) =>
+    `<th scope="col"><button type="button" class="length" data-row="${index}">${length}</button></th>`).join('');
+  const values = inputs.map((input, index) => {
     const value = memory(calculate(input, current).bytes);
-    return `<tr><th scope="row"><button type="button" class="length" data-row="${index}" aria-pressed="${index === selected}">${lengths[index]}</button></th><td><button type="button" class="value" data-row="${index}" aria-label="${lengths[index]}，${value}，查看明细">${value}</button></td></tr>`;
+    return `<td><button type="button" class="value" data-row="${index}" aria-label="${lengths[index]}，${value}，查看明细">${value}</button></td>`;
   }).join('');
+  results.tHead.rows[0].innerHTML = `<th scope="col">max-model-len</th>${headings}`;
+  results.tBodies[0].innerHTML = `<tr><th scope="row">估算显存</th>${values}</tr>`;
+  updateSelection();
+}
+
+function updateSelection() {
+  for (const button of results.querySelectorAll('button[data-row]')) {
+    const active = Number(button.dataset.row) === selected;
+    button.parentElement.classList.toggle('selected-length', active);
+    if (button.classList.contains('length')) button.setAttribute('aria-pressed', active);
+  }
   renderLayout();
 }
 
@@ -181,10 +194,7 @@ results.addEventListener('click', (event) => {
   const button = event.target.closest('button[data-row]');
   if (!button) return;
   selected = Number(button.dataset.row);
-  for (const lengthButton of results.querySelectorAll('.length')) {
-    lengthButton.setAttribute('aria-pressed', Number(lengthButton.dataset.row) === selected);
-  }
-  renderLayout();
+  updateSelection();
   if (button.classList.contains('value')) openDetail(selected);
 });
 

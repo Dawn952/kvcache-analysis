@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KVCache 对比台</title>
-<link rel="stylesheet" href="style.css?v=12">
+<link rel="stylesheet" href="style.css?v=13">
 <main>
   <header>
     <p class="eyebrow">vLLM ASCEND / DECODE</p>
@@ -31,13 +31,12 @@
     <p class="caption" id="native-weight-note" hidden>原生档假设 KV dtype 和分组沿用 950DT 场景，估算范围为单请求 KVCache。<a href="https://huggingface.co/moonshotai/Kimi-K3.1-Pro">Moonshot 原生权重</a></p>
   </section>
 
-  <section class="results-panel" aria-labelledby="results-title">
+  <section aria-labelledby="results-title">
     <h2 id="results-title">单卡 KVCache 占用</h2>
-    <table class="results-table">
-      <thead><tr><th scope="col">max-model-len</th><th scope="col">估算显存</th></tr></thead>
-      <tbody id="results"></tbody>
-    </table>
-    <p class="caption"><a href="#cache-layout">查看选中档位的布局</a></p>
+    <div class="scroll"><table class="results-table" id="results">
+      <thead><tr><th scope="col">max-model-len</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
   </section>
 
   <section aria-labelledby="layout-title" id="cache-layout">
@@ -69,5 +68,5 @@
   <div id="detail-rows"></div>
 </dialog>
 <script src="model.js?v=11" defer></script>
-<script src="app.js?v=12" defer></script>
+<script src="app.js?v=13" defer></script>
 </html>
