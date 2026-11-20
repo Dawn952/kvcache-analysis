@@ -8,6 +8,9 @@ const scenario = byId('scenario');
 const recover = byId('recover');
 const draft = byId('draft');
 const spec = byId('spec');
+const mlaDtype = byId('mla-dtype');
+const indexDtype = byId('index-dtype');
+const draftDtype = byId('draft-dtype');
 const blockSize = byId('block-size');
 const results = byId('results');
 const layout = byId('layout');
@@ -31,8 +34,14 @@ function describe({ recover: enabled, spec: count }) {
 
 function geometryEvidence(value, config) {
   if (config.weight === 'native') return '条件推算 · 原生权重加载未验证';
+  if (hasAlternateDtype(config)) return 'dtype 对照 · 部署未验证';
   if (config.platform === 'a3') return '模板与源码复核 · 占用推算';
   return config.dcp === 8 && value.localBlock === defaultBlock ? '页几何有启动日志 · 占用推算' : '源码推算 · 未实测';
+}
+
+function hasAlternateDtype(config) {
+  const baseline = platforms[config.platform].cacheDtype;
+  return config.mlaDtype !== baseline || config.indexDtype !== baseline || (config.spec > 0 && config.draftDtype !== 'BF16');
 }
 
 function selectPlatform() {
@@ -43,6 +52,9 @@ function selectPlatform() {
   scenario.replaceChildren(...dcpOptions.map(dcp => new Option(topology({ platform, dcp }), dcp)));
   blockSize.replaceChildren(...preset.blockOptions.map(size => new Option(size, size)));
   blockSize.value = String(preset.defaultBlock);
+  mlaDtype.replaceChildren(...preset.dsaDtypes.map(value => new Option(value, value)));
+  indexDtype.replaceChildren(...preset.dsaDtypes.map(value => new Option(value, value)));
+  draftDtype.replaceChildren(...preset.draftDtypes.map(value => new Option(value === 'BF16' ? value : `${value}（容量估算）`, value)));
   recover.checked = preset.recover;
   draft.checked = true;
   spec.value = '3';
@@ -51,13 +63,14 @@ function selectPlatform() {
 
 function render() {
   spec.disabled = !draft.checked;
+  draftDtype.disabled = !draft.checked;
   recover.disabled = !draft.checked;
   if (recover.disabled) recover.checked = false;
   current = { platform: hardware.value, weight: weight.value, dcp: Number(scenario.value), recover: recover.checked,
-    spec: draft.checked ? Number(spec.value) : 0, requestedBlock: Number(blockSize.value) };
-  const preset = platforms[current.platform];
+    spec: draft.checked ? Number(spec.value) : 0, requestedBlock: Number(blockSize.value),
+    mlaDtype: mlaDtype.value, indexDtype: indexDtype.value, draftDtype: draftDtype.value };
   byId('native-weight-note').hidden = current.weight !== 'native';
-  byId('cache-dtypes').textContent = `D 节点 · 图模式 · 主 Attention KV / Indexer K ${preset.cacheDtype} · Draft MLA KV ${current.spec ? 'BF16' : '关闭'}`;
+  byId('dtype-note').hidden = !hasAlternateDtype(current);
   const headings = lengths.map((length, index) =>
     `<th scope="col"><button type="button" class="length" data-row="${index}">${length}</button></th>`).join('');
   const values = inputs.map((input, index) => {
@@ -110,7 +123,7 @@ function renderLayout() {
       <tbody>${mainSlots.slice(0, 3).join('')}<tr id="middle-slots-placeholder" ${showMiddleSlots ? 'hidden' : ''}><th scope="row">L 槽 3–22</th><td colspan="4" class="empty"><button id="expand-middle-slots" type="button" class="layout-toggle" data-layout-panel="middle-slots" aria-controls="middle-slots" aria-expanded="false">展开中间 20 个槽位</button></td></tr></tbody>
       <tbody id="middle-slots" ${showMiddleSlots ? '' : 'hidden'}>${mainSlots.slice(3, -1).join('')}</tbody>
       <tbody>${mainSlots.at(-1)}</tbody>
-      <tbody>${sideRow('Indexer', mainLayers, 'indexer', `${platforms[current.platform].cacheDtype} K + scale`)}${current.spec ? sideRow('Draft', draftLayers, 'draft', 'BF16 MLA KV') : ''}</tbody>
+      <tbody>${sideRow('Indexer', mainLayers, 'indexer', `${current.indexDtype} K${current.indexDtype === 'BF16' ? '' : ' + scale'}`)}${current.spec ? sideRow('Draft', draftLayers, 'draft', `${current.draftDtype} MLA KV`) : ''}</tbody>
     </table></div>
     <h3>一个池 block 的显存怎么算</h3>
     <div class="scroll"><table class="pool-map" aria-label="单池 block 显存分项"><thead><tr><th scope="col">区域</th><th scope="col">物理页数 × 每页字节</th><th scope="col">每个池 ID</th></tr></thead><tbody>
@@ -118,7 +131,7 @@ function renderLayout() {
       <tr><th scope="row">Indexer</th><td>${mainLayers} × ${fmt.format(pages.index)} B</td><td>${memory(regions.index)}</td></tr>
       <tr><th scope="row">Draft</th><td>${current.spec ? draftLayers : 0} × ${fmt.format(pages.draft)} B</td><td>${memory(regions.draft)}</td></tr>
     </tbody></table></div>
-    <p class="caption">MLA 历史块数按逻辑覆盖取整，投机预留受本档 <code>max-model-len</code> 限制。KDA 每组按 2 个基础块做规划，RecoverSSM 关闭时再加 <code>numspec</code> 个。关闭 DSpark 同时关闭 RecoverSSM，并移除每个池 ID 的 Draft 区。</p>`;
+    <p class="caption">MLA 历史块数按逻辑覆盖取整，投机预留受本档 <code>max-model-len</code> 限制。KDA 每组按 2 个基础块做规划，RecoverSSM 关闭时再加 <code>spec_num</code> 个。关闭 DSpark 同时关闭 RecoverSSM，并移除每个池 ID 的 Draft 区。</p>`;
 }
 
 function renderBlockZoom({ coverage, pages, localBlock, requestedBlock, upstreamQuantumBytes, alignmentMultiple }, dcp) {
@@ -145,9 +158,9 @@ function renderBlockZoom({ coverage, pages, localBlock, requestedBlock, upstream
   };
   return `<div class="block-zoom">
     <div><strong>调度逻辑大块 · ${fmt.format(coverage)} token</strong><span>${dcp} 卡 × ${fmt.format(localBlock)} token / 卡</span></div>
-    <p class="caption">先选块：${requestedBlock} × ⌈${fmt.format(pages.state)} B ÷ ${fmt.format(upstreamQuantumBytes)} B⌉ = ${requestedBlock} × ${alignmentMultiple} = ${localBlock} token。再按打包后的 MLA 页计算字节宽度。</p>
+    <p class="caption">先选块：${requestedBlock} × ⌈${fmt.format(pages.state)} B ÷ ${fmt.format(upstreamQuantumBytes)} B⌉ = ${requestedBlock} × ${alignmentMultiple} = ${localBlock} token。再按 ${current.mlaDtype} MLA 物理页计算字节宽度。</p>
     <div class="byte-scale" aria-label="单卡物理页内字节偏移"><span>0 B</span><span>${fmt.format(pages.main)} B</span></div>
-    <div class="byte-label"><strong>MLA 物理页</strong><span>${tiles} 小块 × ${mlaKernelBlock} token，每小块 ${fmt.format(tileBytes)} B</span></div>
+    <div class="byte-label"><strong>MLA 物理页</strong><span>${current.mlaDtype} · ${tiles} 小块 × ${mlaKernelBlock} token，每小块 ${fmt.format(tileBytes)} B</span></div>
     ${track('MLA 物理页', mlaParts)}
     <div class="byte-label"><strong>KDA 对齐页</strong><span>${fmt.format(pages.state)} B 状态 + ${fmt.format(pages.padding)} B padding</span></div>
     ${track('KDA 对齐页', kdaParts)}
@@ -196,7 +209,7 @@ results.addEventListener('click', (event) => {
   if (button.classList.contains('value')) openDetail(selected);
 });
 
-for (const control of [weight, scenario, recover, draft, spec, blockSize]) control.addEventListener('change', render);
+for (const control of [weight, scenario, recover, draft, spec, blockSize, mlaDtype, indexDtype, draftDtype]) control.addEventListener('change', render);
 hardware.addEventListener('change', selectPlatform);
 byId('reset').addEventListener('click', () => {
   hardware.value = 'a5';
