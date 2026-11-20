@@ -13,18 +13,14 @@ const results = byId('results');
 const layout = byId('layout');
 const detail = byId('detail');
 let selected = 3;
-let layoutColumn = 0;
 let showMiddleSlots = false;
 let showBlockZoom = false;
-let comparisons;
+let current;
 
 const fmt = new Intl.NumberFormat('zh-CN');
 const memory = (bytes) => bytes >= 2 ** 30
   ? `${(bytes / 2 ** 30).toFixed(3)} GiB`
   : `${(bytes / 2 ** 20).toFixed(2)} MiB`;
-const signedMiB = new Intl.NumberFormat('zh-CN', { signDisplay: 'exceptZero', minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const memoryDelta = (bytes) => `${signedMiB.format(bytes / 2 ** 20)} MiB/卡`;
-const deltaClass = (bytes) => bytes > 0 ? 'delta-up' : bytes < 0 ? 'delta-down' : 'delta-even';
 const lengths = ['4k+1k', '16k+1k', '64k+1k', '128k+1k', '1M'];
 const topology = ({ platform, dcp }) => `DP4${dcp > 1 ? ` / DCP${dcp}` : ''} / TP${platforms[platform].tp}`;
 const weightLabel = (value) => value === 'native' ? 'Moonshot 原生 MXFP4' : value;
@@ -39,76 +35,39 @@ function geometryEvidence(value, config) {
   return config.dcp === 8 && value.localBlock === defaultBlock ? '页几何有启动日志 · 占用推算' : '源码推算 · 未实测';
 }
 
-function defaultConfiguration(platform) {
-  const preset = platforms[platform];
-  return { platform, weight: preset.weights[0], dcp: preset.dcp, recover: preset.recover, spec: 3,
-    requestedBlock: preset.defaultBlock };
-}
-
 function selectPlatform() {
   const platform = hardware.value;
   const preset = platforms[platform];
-  const defaults = defaultConfiguration(platform);
   const dcpOptions = platform === 'a5' ? [preset.dcp, 1] : [preset.dcp];
   weight.replaceChildren(...preset.weights.map(value => new Option(weightLabel(value), value)));
-  weight.value = defaults.weight;
   scenario.replaceChildren(...dcpOptions.map(dcp => new Option(topology({ platform, dcp }), dcp)));
   blockSize.replaceChildren(...preset.blockOptions.map(size => new Option(size, size)));
-  blockSize.value = String(defaults.requestedBlock);
-  recover.checked = defaults.recover;
+  blockSize.value = String(preset.defaultBlock);
+  recover.checked = preset.recover;
   draft.checked = true;
-  spec.value = String(defaults.spec);
+  spec.value = '3';
   render();
 }
 
 function render() {
-  layoutColumn = 0;
   spec.disabled = !draft.checked;
   recover.disabled = !draft.checked;
   if (recover.disabled) recover.checked = false;
-  const current = { platform: hardware.value, weight: weight.value, dcp: Number(scenario.value), recover: recover.checked,
+  current = { platform: hardware.value, weight: weight.value, dcp: Number(scenario.value), recover: recover.checked,
     spec: draft.checked ? Number(spec.value) : 0, requestedBlock: Number(blockSize.value) };
   const preset = platforms[current.platform];
   byId('native-weight-note').hidden = current.weight !== 'native';
   byId('cache-dtypes').textContent = `D 节点 · 图模式 · 主 Attention KV / Indexer K ${preset.cacheDtype} · Draft MLA KV ${current.spec ? 'BF16' : '关闭'}`;
   const geometry = calculate(inputs[0], current);
   byId('block-size-summary').innerHTML = `<span>传入 <strong>${geometry.requestedBlock}</strong> → 生效 <strong>${geometry.localBlock}</strong> token / 卡</span><small>${geometryEvidence(geometry, current)}</small>`;
-  comparisons = [{ config: current, label: '当前配置' }];
-  if (current.spec !== 0) {
-    comparisons.push(
-      { config: { ...current, recover: !current.recover }, label: `RecoverSSM ${current.recover ? '关' : '开'}` },
-      { config: { ...current, recover: false, spec: 0 }, label: 'DSpark 关闭' },
-    );
-  }
-  if (current.spec !== 3) comparisons.push({ config: { ...current, spec: 3 }, label: 'DSpark 3 token' });
-  if (current.platform === 'a5') {
-    const alternate = { ...current, dcp: current.dcp === preset.dcp ? 1 : preset.dcp };
-    comparisons.push({ config: alternate, label: `${topology(alternate)}${alternate.dcp === 1 ? '（推算）' : ''}` });
-  }
-  const other = defaultConfiguration(current.platform === 'a3' ? 'a5' : 'a3');
-  const otherName = other.platform === 'a3' ? 'A3' : '950DT';
-  comparisons.push({ config: other, label: `${otherName} 默认`, subtitle: topology(other) });
-  byId('comparison-columns').span = comparisons.length;
-  results.closest('table').style.setProperty('--comparison-count', comparisons.length);
-  byId('comparison-headings').innerHTML = '<th scope="col">max-model-len</th>' + comparisons.map(({ config, label, subtitle }) => {
-    const { bytesPerId } = calculate(inputs[0], config);
-    return `<th scope="col" class="config-heading">${label}${subtitle ? `<small>${subtitle}</small>` : ''}<small>${memory(bytesPerId)} / block</small></th>`;
-  }).join('');
   results.innerHTML = inputs.map((input, index) => {
-    const values = comparisons.map(({ config }) => calculate(input, config));
-    const cells = comparisons.map(({ config, label }, column) => {
-      const value = values[column];
-      const delta = value.bytes - values[0].bytes;
-      const deltaLabel = column ? `Δ ${memoryDelta(delta)}` : '';
-      return `<td><button type="button" class="value" data-row="${index}" data-column="${column}" aria-label="${lengths[index]}，${label}，${describe(config)}，${memory(value.bytes)}${column ? `，${deltaLabel}` : ''}，查看明细">${memory(value.bytes)}<small>${value.historyIds} MLA + ${value.stateIds} KDA</small>${column ? `<small class="${deltaClass(delta)}">${deltaLabel}</small>` : ''}</button></td>`;
-    }).join('');
-    return `<tr><th scope="row"><button type="button" class="length" data-row="${index}" aria-pressed="${index === selected}">${lengths[index]}</button></th>${cells}</tr>`;
+    const value = memory(calculate(input, current).bytes);
+    return `<tr><th scope="row"><button type="button" class="length" data-row="${index}" aria-pressed="${index === selected}">${lengths[index]}</button></th><td><button type="button" class="value" data-row="${index}" aria-label="${lengths[index]}，${value}，查看明细">${value}</button></td></tr>`;
   }).join('');
   renderLayout();
 }
 
 function renderLayout() {
-  const { config: current, label } = comparisons[layoutColumn];
   const value = calculate(inputs[selected], current);
   const groups = Array.from({ length: stateGroups }, (_, index) => index);
   const { pages, regions } = value;
@@ -123,7 +82,7 @@ function renderLayout() {
       ? '<td class="empty">空槽</td>' : `<td class="kda">KDA ${slot * 4 + group}</td>`).join('')}</tr>`;
   });
   const sideRow = (name, layers, kind, text) => `<tr><th scope="row">${name} 区 × ${layers} 层</th><td class="${kind}">${text}</td>${groups.map(() => '<td class="empty">预留空页</td>').join('')}</tr>`;
-  byId('layout-caption').textContent = `${lengths[selected]} · ${label} · ${topology(current)} · ${weightLabel(current.weight)} · ${describe(current)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, current)}`;
+  byId('layout-caption').textContent = `${lengths[selected]} · ${topology(current)} · ${weightLabel(current.weight)} · ${describe(current)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, current)}`;
   layout.innerHTML = `
     <div class="flow">
       <div><small>MLA 历史 blocks</small><strong>${value.historyIds} 个</strong><small>⌈${fmt.format(value.limit)} ÷ ${fmt.format(value.coverage)}⌉</small></div>
@@ -209,20 +168,12 @@ layout.addEventListener('click', (event) => {
   }
 });
 
-function openDetail(row, column) {
-  const { config, label } = comparisons[column];
+function openDetail(row) {
+  const config = current;
   const value = calculate(inputs[row], config);
   byId('detail-title').textContent = `${memory(value.bytes)} / 卡`;
-  byId('detail-caption').textContent = `${lengths[row]} · ${label} · ${topology(config)} · ${weightLabel(config.weight)} · ${describe(config)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, config)}`;
-  let difference = '';
-  if (column) {
-    const baseline = calculate(inputs[row], comparisons[0].config);
-    const blockCount = value.historyIds + value.stateIds;
-    const countCost = (blockCount - baseline.historyIds - baseline.stateIds) * baseline.bytesPerId;
-    const priceCost = (value.bytesPerId - baseline.bytesPerId) * blockCount;
-    difference = `<p class="caption">相对当前配置 <strong class="${deltaClass(value.bytes - baseline.bytes)}">${memoryDelta(value.bytes - baseline.bytes)}</strong>。块数差按基准单价计 ${memoryDelta(countCost)}，单价差按对照块数计 ${memoryDelta(priceCost)}。</p>`;
-  }
-  byId('detail-rows').innerHTML = `${difference}<p class="caption">历史 ID = ⌈${fmt.format(value.limit)} / ${fmt.format(value.coverage)}⌉ = ${value.historyIds}。投机预留受本档 <code>max-model-len</code> 截断。KDA 规划 = 3 组 × ${value.stateCopies} 份 = ${value.stateIds} ID。每个 ID 占 ${memory(value.bytesPerId)} / 卡。</p>${value.rows.map((entry) => `<details class="breakdown"><summary><span>${entry.name}</span><strong>${memory(entry.bytes)}</strong></summary><p>${entry.shape}</p><p><code>${entry.formula} = ${fmt.format(entry.bytes)} B</code></p><p class="tags">${entry.tags.map((tag) => `<span>${tag}</span>`).join('')}</p></details>`).join('')}`;
+  byId('detail-caption').textContent = `${lengths[row]} · ${topology(config)} · ${weightLabel(config.weight)} · ${describe(config)} · block ${value.requestedBlock} → ${value.localBlock} · ${geometryEvidence(value, config)}`;
+  byId('detail-rows').innerHTML = `<p class="caption">历史 ID = ⌈${fmt.format(value.limit)} / ${fmt.format(value.coverage)}⌉ = ${value.historyIds}。投机预留受本档 <code>max-model-len</code> 截断。KDA 规划 = 3 组 × ${value.stateCopies} 份 = ${value.stateIds} ID。每个 ID 占 ${memory(value.bytesPerId)} / 卡。</p>${value.rows.map((entry) => `<details class="breakdown"><summary><span>${entry.name}</span><strong>${memory(entry.bytes)}</strong></summary><p>${entry.shape}</p><p><code>${entry.formula} = ${fmt.format(entry.bytes)} B</code></p><p class="tags">${entry.tags.map((tag) => `<span>${tag}</span>`).join('')}</p></details>`).join('')}`;
   detail.showModal();
 }
 
@@ -230,12 +181,11 @@ results.addEventListener('click', (event) => {
   const button = event.target.closest('button[data-row]');
   if (!button) return;
   selected = Number(button.dataset.row);
-  layoutColumn = Number(button.dataset.column ?? 0);
   for (const lengthButton of results.querySelectorAll('.length')) {
     lengthButton.setAttribute('aria-pressed', Number(lengthButton.dataset.row) === selected);
   }
   renderLayout();
-  if (button.dataset.column !== undefined) openDetail(selected, Number(button.dataset.column));
+  if (button.classList.contains('value')) openDetail(selected);
 });
 
 for (const control of [weight, scenario, recover, draft, spec, blockSize]) control.addEventListener('change', render);

@@ -161,25 +161,24 @@ thead th {
   background: #0e1827;
 }
 
-.comparison-table {
-  min-width: calc(7rem + var(--comparison-count, 5) * 8.6rem);
+.results-panel {
+  max-width: 28rem;
+}
+
+.results-table {
   table-layout: fixed;
 }
 
-.comparison-table .length-col {
-  width: 14%;
-}
-
-.comparison-table th, .comparison-table td {
+.results-table th, .results-table td {
   text-align: center;
   vertical-align: middle;
-  padding-inline: .45rem;
+  padding: .35rem .45rem;
 }
 
-.comparison-table .value, .comparison-table .length {
+.results-table .value, .results-table .length {
   display: block;
   width: 100%;
-  padding-inline: .2rem;
+  padding: .2rem;
   text-align: center;
 }
 
@@ -344,22 +343,6 @@ dialog::backdrop {
 .pool-map th:not(:first-child), .pool-map td:not([colspan]) {
   text-align: center;
   vertical-align: middle;
-}
-
-.value small, .config-heading small {
-  display: block;
-  color: var(--muted);
-  font-size: .78rem;
-  font-weight: 400;
-  margin-top: .2rem;
-}
-
-.value .delta-up, .delta-up {
-  color: #ffc091;
-}
-
-.value .delta-down, .delta-down {
-  color: #81dfbe;
 }
 
 .flow strong {

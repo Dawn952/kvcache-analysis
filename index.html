@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KVCache 对比台</title>
-<link rel="stylesheet" href="style.css?v=10">
+<link rel="stylesheet" href="style.css?v=12">
 <main>
   <header>
     <p class="eyebrow">vLLM ASCEND / DECODE</p>
@@ -31,14 +31,12 @@
     <p class="caption" id="native-weight-note" hidden>原生档假设 KV dtype 和分组沿用 950DT 场景，估算范围为单请求 KVCache。<a href="https://huggingface.co/moonshotai/Kimi-K3.1-Pro">Moonshot 原生权重</a></p>
   </section>
 
-  <section aria-labelledby="results-title">
-    <h2 id="results-title">单卡占用对比</h2>
-    <p class="caption">单卡 block 分配估算，含 KDA 规划块。Δ 是相对当前配置的显存差值。机型对照使用另一机型的整套默认配置。</p>
-    <div class="scroll"><table class="comparison-table">
-      <colgroup><col class="length-col"><col id="comparison-columns" span="5"></colgroup>
-      <thead><tr id="comparison-headings"><th scope="col">max-model-len</th></tr></thead>
+  <section class="results-panel" aria-labelledby="results-title">
+    <h2 id="results-title">单卡 KVCache 占用</h2>
+    <table class="results-table">
+      <thead><tr><th scope="col">max-model-len</th><th scope="col">估算显存</th></tr></thead>
       <tbody id="results"></tbody>
-    </table></div>
+    </table>
     <p class="caption"><a href="#cache-layout">查看选中档位的布局</a></p>
   </section>
 
@@ -71,5 +69,5 @@
   <div id="detail-rows"></div>
 </dialog>
 <script src="model.js?v=11" defer></script>
-<script src="app.js?v=11" defer></script>
+<script src="app.js?v=12" defer></script>
 </html>
