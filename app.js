@@ -182,7 +182,8 @@ function openLayoutVisual() {
       const id = pool.start + index;
       const usage = kind === 'kda' ? (index ? '投机状态' : '运行状态') : label;
       const scratch = kind === 'kda' && index ? ' speculative' : '';
-      return `<span class="visual-block ${kind}${scratch}" title="block ${id} · ${usage}" aria-hidden="true">${id}</span>`;
+      const mlaId = kind === 'mla' ? ` data-mla-block="${id}"${id === 0 ? ' data-matched' : ''}` : '';
+      return `<span class="visual-block ${kind}${scratch}"${mlaId} title="block ${id} · ${usage}" aria-hidden="true">${id}</span>`;
     }).join('')}</div></div>`;
 
   byId('layout-visual-content').innerHTML = `
@@ -192,7 +193,12 @@ function openLayoutVisual() {
     <div class="scroll visual-block-scroll" tabindex="0" role="region" aria-label="缓存 block 图，可横向滚动">
       <table class="visual-block-map" aria-describedby="visual-block-guide">
         <thead><tr><th scope="col">存储行（L）</th>
-          <th scope="col">${pools[0].label}<small title="请求 token 数 ÷ 每个逻辑 block 覆盖的 token 数，向上取整">⌈${fmt.format(limit)} ÷ ${fmt.format(coverage)}⌉ = ${historyIds} 个 block</small></th>
+          <th scope="col">${pools[0].label}<small title="请求 token 数 ÷ 每个逻辑 block 覆盖的 token 数，向上取整">⌈${fmt.format(limit)} ÷ ${fmt.format(coverage)}⌉ = ${historyIds} 个 block</small>
+            <small>共享 block ID · 点击编号对照</small>
+            <div class="visual-block-strip" role="group" aria-label="共享 MLA block ID，可用左右方向键切换">
+              ${Array.from({ length: historyIds }, (_, id) => `<button type="button" class="visual-block visual-block-id" data-mla-id="${id}" tabindex="${id === 0 ? 0 : -1}" aria-pressed="${id === 0}" aria-label="block ID ${id}，MLA 第 ${mlaLayer(0)}、${mlaLayer(1)} 层">${id}</button>`).join('')}
+            </div>
+          </th>
           ${pools.slice(1).map((pool) => `<th scope="col">${pool.label}<small>${pool.count} 个 block</small></th>`).join('')}
         </tr></thead>
         ${regions.map((region) => `<tbody>${[0, 1].map((slot) => `<tr>
@@ -208,7 +214,7 @@ function openLayoutVisual() {
     ${pages.draft ? '' : '<p class="caption">DSpark 已关闭，当前配置没有 Draft 区。</p>'}
     <details class="visual-block-detail">
       <summary>block 数量和排布是怎么算的？</summary>
-      <p class="caption"><strong>MLA block ID。</strong> 各 MLA 层共用这批编号。每层每个 block 在本卡可存 ${fmt.format(localBlock)} token。</p>
+      <p class="caption">每层每个 MLA block 在本卡可存 ${fmt.format(localBlock)} token。</p>
       <p class="caption"><strong>为什么一行有 MLA 和 KDA？</strong> 行号表示物理存储位置。第 0 行中，第 ${mlaLayer(0)} 层的 MLA 和第 0、1、2 层的 KDA 共用同一行，分别使用各自的 block ID。</p>
       <p class="caption"><strong>连续排布。</strong> MLA / KDA 共用区按 <code>L → B → N → H → C</code> 排布。固定存储行 L 后，整池的 block 按实际 block ID（B）递增连续存放，步长是 ${fmt.format(pages.main)} 字节。同一请求分到的 ID 可以不相邻。</p>
     </details>
@@ -275,8 +281,42 @@ document.querySelector('.layout-visual-link').addEventListener('click', (event) 
   openLayoutVisual();
 });
 
+function selectMlaId(button) {
+  const previous = button.parentElement.querySelector('[aria-pressed="true"]');
+  if (previous === button) return;
+  previous.setAttribute('aria-pressed', 'false');
+  previous.tabIndex = -1;
+  button.setAttribute('aria-pressed', 'true');
+  button.tabIndex = 0;
+  for (const block of layoutVisual.querySelectorAll('[data-mla-block][data-matched]')) block.removeAttribute('data-matched');
+  for (const block of layoutVisual.querySelectorAll(`[data-mla-block="${button.dataset.mlaId}"]`)) block.setAttribute('data-matched', '');
+}
+
+layoutVisual.addEventListener('keydown', (event) => {
+  const button = event.target.closest('[data-mla-id]');
+  if (!button) return;
+  const targets = {
+    ArrowLeft: button.previousElementSibling,
+    ArrowRight: button.nextElementSibling,
+    Home: button.parentElement.firstElementChild,
+    End: button.parentElement.lastElementChild,
+  };
+  if (!Object.hasOwn(targets, event.key)) return;
+  event.preventDefault();
+  const next = targets[event.key];
+  if (!next) return;
+  selectMlaId(next);
+  next.focus({ preventScroll: true });
+  next.scrollIntoView({ block: 'nearest', inline: 'center' });
+});
+
 layoutVisual.addEventListener('click', (event) => {
   if (showByteOffset(event.target)) return;
+  const id = event.target.closest('[data-mla-id]');
+  if (id) {
+    selectMlaId(id);
+    return;
+  }
   const jump = event.target.closest('[data-block-group]');
   if (!jump) return;
   const scroller = layoutVisual.querySelector('.visual-block-scroll');
