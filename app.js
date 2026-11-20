@@ -84,13 +84,6 @@ function renderLayout() {
       <tbody>${mainSlots.at(-1)}</tbody>
       <tbody>${sideRow('Indexer', mainLayers, 'indexer', 'FP8 K + scale')}${current.spec ? sideRow('Draft', draftLayers, 'draft', 'BF16 MLA KV') : ''}</tbody>
     </table></div>
-    <h3>MLA 页覆盖一份 KDA 状态</h3>
-    <p class="caption"><code>MLA Block ≥ KDA Block</code> 比较的是每层物理页字节。KDA 按 MLA 页宽补齐，使用相同的 block stride。</p>
-    <div class="page-alignment" aria-label="MLA 页和 KDA 对齐页的字节对比">
-      <span>主 MLA 页</span><div class="page-track"><div class="mla">${fmt.format(pages.main)} B</div></div>
-      <span>KDA 对齐页</span><div class="page-track"><div class="kda" style="flex:${pages.state}">${fmt.format(pages.state)} B 状态</div><div class="empty" style="flex:${pages.padding}"></div></div>
-    </div>
-    <p class="caption">主 MLA <code>[B, ${localBlock}, 1, 656]</code> byte。KDA 状态为 <code>[12, 128, 128]</code> FP32 + <code>[${3 + current.spec}, 4608]</code> BF16，再补 <strong>${fmt.format(pages.padding)} B</strong> 至 ${fmt.format(pages.main)} B。</p>
     <h3>一个池 block 的显存怎么算</h3>
     <div class="scroll"><table class="pool-map" aria-label="单池 block 显存分项"><thead><tr><th scope="col">区域</th><th scope="col">物理页数 × 每页字节</th><th scope="col">每个池 ID</th></tr></thead><tbody>
       <tr><th scope="row">Main</th><td>${mainLayers} × ${fmt.format(pages.main)} B</td><td>${memory(regions.main)}</td></tr>
@@ -102,18 +95,45 @@ function renderLayout() {
 
 function renderBlockZoom({ coverage, pages }, dcp) {
   const tiles = localBlock / mlaKernelBlock;
-  const ranks = Array.from({ length: dcp }, (_, rank) => `<span>卡 ${rank} · ${fmt.format(localBlock)}</span>`).join('');
+  const tileBytes = pages.main / tiles;
+  const mlaParts = Array.from({ length: tiles }, (_, index) => ({
+    label: `Kernel 小块 ${index + 1}`, bytes: tileBytes, css: 'mla', text: index + 1,
+  }));
+  const kdaParts = [
+    { label: 'Conv', bytes: pages.conv, css: 'conv' },
+    { label: 'Recurrent', bytes: pages.recurrent, css: 'kda' },
+    { label: 'Padding', bytes: pages.padding, css: 'empty' },
+  ];
+  const track = (name, parts) => {
+    let offset = 0;
+    const buttons = parts.map(({ label, bytes, css, text }) => {
+      const start = offset;
+      offset += bytes;
+      const caption = `${label} · ${fmt.format(bytes)} B · 偏移 [${fmt.format(start)}, ${fmt.format(offset)}) B`;
+      return `<button type="button" class="byte-segment ${css}" data-byte-caption="${caption}" aria-label="${name} ${caption}" title="${caption}">${text ?? ''}</button>`;
+    });
+    const columns = parts.map(({ bytes }) => `minmax(0, ${bytes}fr)`).join(' ');
+    return `<div class="byte-track" role="group" aria-label="${name}" style="grid-template-columns:${columns}">${buttons.join('')}</div>`;
+  };
   return `<div class="block-zoom">
     <div><strong>调度逻辑大块 · ${fmt.format(coverage)} token</strong><span>${dcp} 卡 × ${fmt.format(localBlock)} token / 卡</span></div>
-    <div class="block-ranks" aria-hidden="true">${ranks}</div>
-    <div><strong>放大其中一张卡 · ${fmt.format(localBlock)} token 的 MLA 物理页</strong><span>${tiles} 个 kernel 小块 × ${mlaKernelBlock} token</span></div>
-    <div class="kernel-tiles" aria-hidden="true">${`<span>${mlaKernelBlock}</span>`.repeat(tiles)}</div>
-    <p><strong>对齐到单卡物理页的字节宽度。</strong> 一份 KDA 状态 ${fmt.format(pages.state)} B，加 ${fmt.format(pages.padding)} B padding，按 MLA 的 ${fmt.format(pages.main)} B 作为 block stride。</p>
-    <p class="caption">KDA 的 align 调度粒度为 ${fmt.format(localBlock)} token。KDA 物理页里存的是一个状态快照。卡的排列用于展示逻辑覆盖量。</p>
+    <div class="byte-scale" aria-label="单卡物理页内字节偏移"><span>0 B</span><span>${fmt.format(pages.main)} B</span></div>
+    <div class="byte-label"><strong>MLA 物理页</strong><span>${tiles} 小块 × ${mlaKernelBlock} token，每小块 ${fmt.format(tileBytes)} B</span></div>
+    ${track('MLA 物理页', mlaParts)}
+    <div class="byte-label"><strong>KDA 对齐页</strong><span>${fmt.format(pages.state)} B 状态 + ${fmt.format(pages.padding)} B padding</span></div>
+    ${track('KDA 对齐页', kdaParts)}
+    <div class="byte-legend">${kdaParts.map(({ label, bytes, css }) => `<span><i class="${css}" aria-hidden="true"></i>${label} ${fmt.format(bytes)} B</span>`).join('')}</div>
+    <p id="byte-readout" class="caption" aria-live="polite">点击任意分段查看页内字节偏移。</p>
+    <p class="caption">两行使用同一字节标尺。KDA 对齐到单卡 MLA 的整页宽度 ${fmt.format(pages.main)} B。</p>
   </div>`;
 }
 
 layout.addEventListener('click', (event) => {
+  const segment = event.target.closest('[data-byte-caption]');
+  if (segment) {
+    byId('byte-readout').textContent = segment.dataset.byteCaption;
+    return;
+  }
   const button = event.target.closest('[data-layout-panel]');
   if (!button) return;
   const panel = byId(button.dataset.layoutPanel);

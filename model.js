@@ -56,7 +56,7 @@
     ];
     const bytes = (historyIds + stateIds) * bytesPerId;
     if (rows.reduce((sum, row) => sum + row.bytes, 0) !== bytes) throw new Error('分项与整页计费不一致');
-    const pages = { main: mainPage, index: indexPage, draft: draftPage, state, padding: mainPage - state };
+    const pages = { main: mainPage, index: indexPage, draft: draftPage, conv, recurrent, state, padding: mainPage - state };
     const regions = { main: mainRegion, index: indexRegion, draft: draftRegion };
     return { input, limit, coverage, historyIds, stateCopies, stateIds, bytesPerId, pages, regions, rows, bytes };
   }
