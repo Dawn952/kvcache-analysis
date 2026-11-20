@@ -147,6 +147,7 @@ select:disabled {
 
 .option-groups legend {
   color: var(--text);
+  margin-inline: auto;
   padding: 0 .25rem;
   font-weight: 650;
 }
