@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KVCache 对比台</title>
+<link rel="stylesheet" href="style.css">
+<main>
+  <header>
+    <p class="eyebrow">vLLM ASCEND / DECODE</p>
+    <h1>KVCache 对比台</h1>
+    <p>查看 Kimi-K3.1 Pro 的单请求、单卡 KVCache block 显存。</p>
+  </header>
+
+  <section aria-labelledby="settings-title">
+    <h2 id="settings-title">部署配置</h2>
+    <div class="settings">
+      <label>模型<select><option>Kimi-K3.1 Pro</option></select></label>
+      <label>机型<select><option>Ascend 950DT</option></select></label>
+      <label>权重<select><option>W4A8_MXFP</option></select></label>
+      <label>典型场景<select id="scenario"><option value="8">DP4 / DCP8 / TP8</option><option value="1">DP4 / TP8</option></select></label>
+    </div>
+    <div class="controls">
+      <label><input type="checkbox" id="recover" checked> RecoverSSM</label>
+      <label><input type="checkbox" id="draft" checked> DSpark</label>
+      <label for="spec">numspec <select id="spec"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></label>
+      <button id="reset" type="button">恢复默认</button>
+    </div>
+    <p class="caption">D 节点 · 图模式 · 主 Attention KV / Indexer K FP8 · Draft MLA KV BF16</p>
+  </section>
+
+  <section aria-labelledby="results-title">
+    <h2 id="results-title">单卡占用对比</h2>
+    <p class="caption">生成预算用满时的 block 分配估算。八卡按同一值展示。每列只改动列名所示配置。</p>
+    <div class="scroll"><table>
+      <thead><tr><th scope="col">输入长度</th><th scope="col">生成预算</th><th scope="col">max_model_len</th><th scope="col">当前配置</th><th scope="col" id="recover-heading">RecoverSSM 关</th><th scope="col">DSpark 关闭</th><th scope="col">DSpark 3 token</th><th scope="col" id="topology-heading">DP4 / TP8</th></tr></thead>
+      <tbody id="results"></tbody>
+    </table></div>
+    <p class="caption" id="scenario-note"></p>
+  </section>
+
+  <section aria-labelledby="layout-title">
+    <h2 id="layout-title">KVCache 布局</h2>
+    <p id="layout-caption" class="caption"></p>
+    <div id="layout"></div>
+    <details>
+      <summary>对齐原理与计算口径</summary>
+      <ol>
+        <li><strong>先分清 TP 与 DCP。</strong> KDA 的 96 个头按 TP8 切成每卡 12 个。Attention KV、Indexer K 和 draft MLA 按 DCP 分 token，本地 1536 token 的物理页在 DCP8 下对应 12288 token 的逻辑覆盖，在无 DCP 的对照场景下覆盖 1536 token。</li>
+        <li><strong>再对齐物理页。</strong> 历史部署的 CLI block size 为 768，启动日志中的有效本地 block size 是 1536。按 DSpark3 每层 KDA 原始状态为 841,728 B，主 MLA 页为 1536 × 656 = 1,007,616 B。KDA 状态对齐到主 MLA 页后，同一个物理槽可以按 ID 归属由两种缓存分别使用。Indexer 和 draft 分配各自的页宽。</li>
+        <li><strong>最后按池 ID 结算。</strong> 这里按输入、生成预算和投机预留取整到整逻辑 block。KDA 有三组，每组持有两份基础状态页的规划上界。关闭 RecoverSSM 时，每组再加 <code>numspec</code> 份。每个状态 ID 依然占用整个物理池 ID 的 backing。</li>
+      </ol>
+      <p>模型按独享请求、无前缀复用计算。投机预留用于计算页数。<code>max_model_len</code> 列仍是输入与可生成预算之和。全池 null ID、模型权重、图内存和按引擎槽数分配的 RecoverSSM records 独立于该请求的 block 计费。</p>
+      <p>本页固定采用 A5 Atlas 的 1536-token 页几何。改变开关时重算页数、状态及池分项。实际启动时如发生重新定页，应当用对应部署的 cache spec 校准。两份基础状态页采用容量规划上界。</p>
+      <p class="sources"><a href="https://dawn952.github.io/kimi-k31-a5-analysis/">A5 Atlas</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/models/kimi_k3/paired_sfa_cache.py">固定版物理页布局</a><a href="https://github.com/vllm-project/vllm-ascend/pull/21549">RecoverSSM</a></p>
+    </details>
+  </section>
+</main>
+<dialog id="detail" aria-labelledby="detail-title">
+  <div class="dialog-head"><div><h2 id="detail-title">占用明细</h2><p id="detail-caption" class="caption"></p></div><form method="dialog"><button>关闭</button></form></div>
+  <div id="detail-rows"></div>
+</dialog>
+<script src="model.js" defer></script>
+<script src="app.js" defer></script>
+</html>
