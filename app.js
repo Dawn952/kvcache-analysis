@@ -33,6 +33,7 @@ const weightLabel = (value) => value === 'native' ? 'Moonshot 原生 MXFP4' : va
 const blockInputPrefix = ({ requestedBlock, localBlock }) => requestedBlock === localBlock ? '' : `${requestedBlock} → `;
 const mlaLayer = (slot) => slot === layersPerStateGroup ? 92 : slot * (stateGroups + 1) + stateGroups;
 const kdaLayer = (slot, group) => slot * (stateGroups + 1) + group;
+const examplePoolId = (position) => [29, 81, 12, 54][position] ?? 100 + position;
 
 function describe({ recover: enabled, spec: count }) {
   return `RecoverSSM ${enabled ? '开' : '关'} · DSpark ${count ? `${count} token` : '关'}`;
@@ -177,26 +178,32 @@ function openLayoutVisual() {
   if (pages.draft) regions.push({ label: 'Draft', kind: 'draft', bytes: pages.draft, layers: draftLayers });
 
   const strip = (pool, kind, label) => `<div class="visual-block-group"><small>${label}</small>
-    <div class="visual-block-strip" role="img" aria-label="${label}，${pool.count} 个 block，编号 ${pool.start} 至 ${pool.start + pool.count - 1}${kind === 'kda' ? `，1 个运行状态 block${pool.count > 1 ? `，${pool.count - 1} 个投机状态 block` : ''}` : ''}">
+    <div class="visual-block-strip" role="img" aria-label="${label}，${pool.count} 个池 block${kind === 'kda' ? `，1 个运行状态 block${pool.count > 1 ? `，${pool.count - 1} 个投机状态 block` : ''}` : ''}">
     ${Array.from({ length: pool.count }, (_, index) => {
       const id = pool.start + index;
       const usage = kind === 'kda' ? (index ? '投机状态' : '运行状态') : label;
       const scratch = kind === 'kda' && index ? ' speculative' : '';
       const mlaId = kind === 'mla' ? ` data-mla-block="${id}"${id === 0 ? ' data-matched' : ''}` : '';
-      return `<span class="visual-block ${kind}${scratch}"${mlaId} title="block ${id} · ${usage}" aria-hidden="true">${id}</span>`;
+      return `<span class="visual-block ${kind}${scratch}"${mlaId} title="池 block ${examplePoolId(id)} · ${usage}" aria-hidden="true">${examplePoolId(id)}</span>`;
     }).join('')}</div></div>`;
 
   byId('layout-visual-content').innerHTML = `
     <p class="caption">${lengths[selected]} · ${topology(current)} · ${describe(current)} · ${fmt.format(localBlock)} token / 卡</p>
     <p id="visual-block-guide" class="caption">以第 ${mlaLayer(0)} 层 MLA 为例，每个覆盖 <strong>${fmt.format(coverage)} token</strong> 的逻辑 block 对应本卡 <strong>1 个池 block</strong>（图中一格）。本请求的 MLA 历史共占 <strong>${historyIds} 个 block</strong>。</p>
+    <div class="mla-block-lookup" aria-live="polite">
+      <span>请求逻辑 block <strong id="mla-logical-number">0</strong></span>
+      <span aria-hidden="true">→</span><span>MLA 组的 block table</span><span aria-hidden="true">→</span>
+      <strong>示例池 block <span id="mla-pool-number">${examplePoolId(0)}</span></strong>
+    </div>
+    <p class="caption">同一段 token 由 MLA 组统一分配。各层查同一张表，再在自己的存储行读写 KV。</p>
     <div class="visual-block-nav" role="group" aria-label="跳到缓存组">${pools.map((pool, group) => `<button type="button" data-block-group="${group}">${pool.label} <span>· ${pool.count} 个 block</span></button>`).join('')}</div>
     <div class="scroll visual-block-scroll" tabindex="0" role="region" aria-label="缓存 block 图，可横向滚动">
       <table class="visual-block-map" aria-describedby="visual-block-guide">
         <thead><tr><th scope="col">存储行（L）</th>
           <th scope="col">${pools[0].label}<small title="请求 token 数 ÷ 每个逻辑 block 覆盖的 token 数，向上取整">⌈${fmt.format(limit)} ÷ ${fmt.format(coverage)}⌉ = ${historyIds} 个 block</small>
-            <small>共享 block ID · 点击编号对照</small>
-            <div class="visual-block-strip" role="group" aria-label="共享 MLA block ID，可用左右方向键切换">
-              ${Array.from({ length: historyIds }, (_, id) => `<button type="button" class="visual-block visual-block-id" data-mla-id="${id}" tabindex="${id === 0 ? 0 : -1}" aria-pressed="${id === 0}" aria-label="block ID ${id}，MLA 第 ${mlaLayer(0)}、${mlaLayer(1)} 层">${id}</button>`).join('')}
+            <small>逻辑 block 编号 · 点击查看查表结果</small>
+            <div class="visual-block-strip" role="group" aria-label="MLA 逻辑 block 编号，可用左右方向键切换">
+              ${Array.from({ length: historyIds }, (_, id) => `<button type="button" class="visual-block visual-block-id" data-mla-id="${id}" tabindex="${id === 0 ? 0 : -1}" aria-pressed="${id === 0}" aria-label="逻辑 block ${id} 对应示例池 block ${examplePoolId(id)}">${id}</button>`).join('')}
             </div>
           </th>
           ${pools.slice(1).map((pool) => `<th scope="col">${pool.label}<small>${pool.count} 个 block</small></th>`).join('')}
@@ -210,7 +217,7 @@ function openLayoutVisual() {
         </tr>`).join('')}</tbody>`).join('')}
       </table>
     </div>
-    <p class="caption">各区域只画前两行。编号为示意，斜纹是预留空页。${stateCopies > 1 ? 'KDA 中的虚线格表示投机状态。' : ''}</p>
+    <p class="caption">各区域只画前两行。池 block ID 为示例，图中按请求顺序和缓存组排列。斜纹是预留空页。${stateCopies > 1 ? 'KDA 中的虚线格表示投机状态。' : ''}</p>
     ${pages.draft ? '' : '<p class="caption">DSpark 已关闭，当前配置没有 Draft 区。</p>'}
     <details class="visual-block-detail">
       <summary>block 数量和排布是怎么算的？</summary>
@@ -288,6 +295,8 @@ function selectMlaId(button) {
   previous.tabIndex = -1;
   button.setAttribute('aria-pressed', 'true');
   button.tabIndex = 0;
+  byId('mla-logical-number').textContent = button.dataset.mlaId;
+  byId('mla-pool-number').textContent = examplePoolId(Number(button.dataset.mlaId));
   for (const block of layoutVisual.querySelectorAll('[data-mla-block][data-matched]')) block.removeAttribute('data-matched');
   for (const block of layoutVisual.querySelectorAll(`[data-mla-block="${button.dataset.mlaId}"]`)) block.setAttribute('data-matched', '');
 }
