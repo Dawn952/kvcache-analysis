@@ -80,8 +80,14 @@ p {
 .settings label {
   display: grid;
   gap: .4rem;
+  min-width: 0;
   font-size: .9rem;
   color: var(--muted);
+}
+
+.settings select {
+  width: 100%;
+  min-width: 0;
 }
 
 button,select {
@@ -145,7 +151,6 @@ table {
 }
 
 th,td {
-  text-align: right;
   padding: .54rem .65rem;
   border-bottom: 1px solid var(--line);
 }
@@ -156,8 +161,30 @@ thead th {
   background: #0e1827;
 }
 
-th:first-child {
-  text-align: left;
+.comparison-table {
+  min-width: 62rem;
+  table-layout: fixed;
+}
+
+.comparison-table .length-col {
+  width: 9%;
+}
+
+.comparison-table .limit-col {
+  width: 12%;
+}
+
+.comparison-table th, .comparison-table td {
+  text-align: center;
+  vertical-align: middle;
+  padding-inline: .45rem;
+}
+
+.comparison-table .value, .comparison-table .length {
+  display: block;
+  width: 100%;
+  padding-inline: .2rem;
+  text-align: center;
 }
 
 tbody tr:has([aria-pressed=true]) {
@@ -246,12 +273,28 @@ dialog::backdrop {
   gap: .75rem;
 }
 
-.breakdown summary span {
-  margin-right: .7rem;
+.breakdown summary {
+  display: flex;
+  align-items: baseline;
+  gap: .55rem;
+}
+
+.breakdown summary::before {
+  content: '';
+  flex: none;
+  border: .27em solid transparent;
+  border-right: 0;
+  border-left-color: var(--muted);
+}
+
+.breakdown[open] summary::before {
+  transform: rotate(90deg);
 }
 
 .breakdown summary strong {
-  float: right;
+  margin-inline-start: auto;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
   color: var(--accent);
 }
 
@@ -300,6 +343,11 @@ dialog::backdrop {
 
 .pool-map td,.pool-map th {
   text-align: left;
+}
+
+.pool-map th:not(:first-child), .pool-map td:not([colspan]) {
+  text-align: center;
+  vertical-align: middle;
 }
 
 .value small, .config-heading small {
@@ -359,6 +407,7 @@ dialog::backdrop {
   display: flex;
   gap: .2rem;
   align-items: center;
+  justify-content: center;
   color: #65ccaf;
   min-height: 1rem;
 }
