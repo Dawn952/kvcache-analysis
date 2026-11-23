@@ -1,7 +1,7 @@
 'use strict';
 
 const { inputs, defaultBlock, platforms, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup, draftLayers,
-  k3Preset, calculate: calculateK31, calculateK3 } = KVCache;
+  k3Preset, k3Platforms, calculate: calculateK31, calculateK3 } = KVCache;
 const byId = (id) => document.getElementById(id);
 const modelChoice = byId('model');
 const hardware = byId('hardware');
@@ -47,6 +47,9 @@ function describe({ recover: enabled, spec: count }) {
 function geometryEvidence(value, config) {
   if (config.modelId === 'k3') {
     if (value.draftInfo?.kind === 'GQA') return '上游分组推算 · Ascend 页布局待实测';
+    if (config.platform === 'a3') {
+      return value.draftInfo?.layers === 3 ? '3 层 MLA 结构推算 · 未实测' : 'A3 模板页几何 · 占用推算';
+    }
     if (value.draftInfo?.layers === 5) return '5 层 MLA 结构推算 · 未实测';
     return '布局推算 · 未实测';
   }
@@ -64,9 +67,10 @@ function hasAlternateDtype(config) {
 function selectPlatform() {
   const platform = hardware.value;
   const k3 = modelChoice.value === 'k3';
-  const preset = k3 ? { weights: ['W4A8'], blockOptions: [k3Preset.blockSize], defaultBlock: k3Preset.blockSize,
+  const k3Platform = k3Platforms[platform];
+  const preset = k3 ? { weights: ['W4A8'], blockOptions: [k3Platform.blockSize], defaultBlock: k3Platform.blockSize,
     dsaDtypes: ['BF16'], draftDtypes: ['BF16'], recover: false } : platforms[platform];
-  const dcpOptions = k3 ? [1] : platform === 'a5' ? [preset.dcp, 1] : [preset.dcp];
+  const dcpOptions = k3 ? k3Platform.dcpOptions : platform === 'a5' ? [preset.dcp, 1] : [preset.dcp];
   weight.replaceChildren(...preset.weights.map(value => new Option(weightLabel(value), value)));
   scenario.replaceChildren(...dcpOptions.map(dcp => new Option(topology({ platform, dcp }), dcp)));
   blockSize.replaceChildren(...preset.blockOptions.map(size => new Option(size, size)));
@@ -76,16 +80,16 @@ function selectPlatform() {
   draftDtype.replaceChildren(...preset.draftDtypes.map(value => new Option(value === 'BF16' ? value : `${value}（容量估算）`, value)));
   recover.checked = preset.recover;
   draft.checked = true;
-  spec.value = '3';
+  spec.value = String(k3 ? k3Platform.spec : 3);
+  if (k3) mlaDraftLayers.value = String(k3Platform.mlaDraftLayers);
   render();
 }
 
-function selectModel() {
+function selectModel(preferredHardware = hardware.value) {
   const k3 = modelChoice.value === 'k3';
-  const previousHardware = hardware.value;
   const modelName = modelChoice.selectedOptions[0].textContent;
-  hardware.replaceChildren(...(k3 ? ['a5'] : Object.keys(platforms)).map(id => new Option(platforms[id].name, id)));
-  if (Array.from(hardware.options).some(option => option.value === previousHardware)) hardware.value = previousHardware;
+  hardware.replaceChildren(...Object.keys(platforms).map(id => new Option(platforms[id].name, id)));
+  if (Object.hasOwn(platforms, preferredHardware)) hardware.value = preferredHardware;
   byId('page-title').textContent = document.title = `${modelName} KVCache 对比台`;
   byId('layout-title').textContent = `${modelName} 的 LBNHC 布局`;
   byId('attention-options-title').textContent = k3 ? 'MLA' : 'DSA';
@@ -94,13 +98,12 @@ function selectModel() {
   byId('k3-method').hidden = !k3;
   byId('k31-method').hidden = k3;
   draftKind.value = 'mla';
-  mlaDraftLayers.value = String(k3Preset.mlaDraftLayerOptions[0]);
   selectPlatform();
 }
 
 function render() {
   const k3 = modelChoice.value === 'k3';
-  const maxSpec = k3 && draftKind.value === 'mla' ? 5 : 7;
+  const maxSpec = k3 && draftKind.value === 'mla' ? k3Platforms[hardware.value].maxMlaSpec : 7;
   for (const option of spec.options) option.disabled = Number(option.value) > maxSpec;
   if (Number(spec.value) > maxSpec) spec.value = String(maxSpec);
   spec.disabled = !draft.checked;
@@ -437,14 +440,14 @@ results.addEventListener('click', (event) => {
 mlaDraftLayers.replaceChildren(...k3Preset.mlaDraftLayerOptions.map(count => new Option(`${count} 层`, count)));
 for (const control of [weight, scenario, recover, draft, spec, blockSize, mlaDtype, indexDtype, draftDtype, draftKind, mlaDraftLayers]) control.addEventListener('change', render);
 hardware.addEventListener('change', selectPlatform);
-modelChoice.addEventListener('change', selectModel);
+modelChoice.addEventListener('change', () => selectModel());
 byId('reset').addEventListener('click', () => {
-  hardware.value = 'a5';
   selected = 3;
   selectedMlaId = 0;
   layoutVisual.querySelector('.visual-block-scroll').scrollLeft = 0;
-  selectModel();
+  selectModel(modelChoice.value === 'k3' ? hardware.value : 'a5');
 });
 
-if (new URLSearchParams(location.search).get('model') === 'k3') modelChoice.value = 'k3';
-selectModel();
+const query = new URLSearchParams(location.search);
+if (query.get('model') === 'k3') modelChoice.value = 'k3';
+selectModel(query.get('platform'));

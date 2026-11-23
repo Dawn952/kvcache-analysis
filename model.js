@@ -29,7 +29,11 @@
   const layersPerStateGroup = stateLayers / stateGroups;
   const draftLayers = 5;
   const dim = 128;
-  const k3Preset = { blockSize: 768, tp: 8, mlaDraftLayerOptions: [3, 5], gqaDraftLayers: 5, gqaKvHeads: 16, gqaHeadDim: 64 };
+  const k3Preset = { mlaDraftLayerOptions: [3, 5], gqaDraftLayers: 5, gqaKvHeads: 16, gqaHeadDim: 64 };
+  const k3Platforms = {
+    a5: { blockSize: 768, dcpOptions: [1], spec: 3, mlaDraftLayers: 3, maxMlaSpec: 5 },
+    a3: { blockSize: 384, dcpOptions: [16, 1], spec: 7, mlaDraftLayers: 5, maxMlaSpec: 7 },
+  };
 
   function kdaGeometry(tp, spec) {
     const heads = 96 / tp;
@@ -108,17 +112,22 @@
       requestedBlock, localBlock, upstreamQuantumBytes, alignmentMultiple };
   }
 
-  function calculateK3(input, { recover, spec, draftKind = 'mla', mlaDraftLayerCount = k3Preset.mlaDraftLayerOptions[0] }) {
+  function calculateK3(input, { platform = 'a5', recover, spec, draftKind = 'mla',
+    dcp = k3Platforms[platform]?.dcpOptions[0], mlaDraftLayerCount = k3Platforms[platform]?.mlaDraftLayers }) {
+    const preset = k3Platforms[platform];
+    if (!preset?.dcpOptions.includes(dcp)) throw new RangeError('不支持此 Kimi-K3 机型和 DCP 组合');
     if (draftKind !== 'mla' && draftKind !== 'gqa') throw new RangeError('不支持此 Draft 类型');
     const gqa = draftKind === 'gqa';
     if (!gqa && !k3Preset.mlaDraftLayerOptions.includes(mlaDraftLayerCount)) throw new RangeError('MLA Draft 层数可选 3 或 5');
-    if (!Number.isInteger(spec) || spec < 0 || spec > (gqa ? 7 : 5) || (recover && !spec)) {
+    if (!Number.isInteger(spec) || spec < 0 || spec > (gqa ? 7 : preset.maxMlaSpec) || (recover && !spec)) {
       throw new RangeError('不支持此 Kimi-K3 投机配置');
     }
 
-    const { blockSize: localBlock, tp } = k3Preset;
+    const { blockSize: localBlock } = preset;
+    const { tp } = platforms[platform];
     const limit = input + Ki;
-    const historyIds = Math.ceil(limit / localBlock);
+    const coverage = localBlock * dcp;
+    const historyIds = Math.ceil(limit / coverage);
     const { heads, conv, recurrent, state } = kdaGeometry(tp, spec);
     const stateCopies = 1 + (recover ? 0 : spec);
     const stateIds = stateCopies * stateGroups;
@@ -142,10 +151,10 @@
     const rows = [
       { name: 'MLA 历史 KV', bytes: historyIds * mainLayers * mainPage,
         shape: '每 token 存 512 维 latent 与 64 维位置分量（BF16）',
-        formula: `${historyIds} ID × ${mainLayers} 层 × ${localBlock} token × ${tokenBytes} B`, tags: ['LBNHC'] },
+        formula: `${historyIds} ID × ${mainLayers} 层 × ${localBlock} token × ${tokenBytes} B`, tags: dcp > 1 ? ['LBNHC', 'DCP'] : ['LBNHC'] },
       { name: 'KDA 状态内容', bytes: stateLayers * stateCopies * state,
         shape: `[${heads},128,128] FP32 + [${3 + spec},3,${heads},128] BF16`,
-        formula: `${stateLayers} 层 × ${stateCopies} 份 × (${recurrent} + ${conv}) B`, tags: ['TP8', 'RecoverSSM'] },
+        formula: `${stateLayers} 层 × ${stateCopies} 份 × (${recurrent} + ${conv}) B`, tags: [`TP${tp}`, 'RecoverSSM'] },
       { name: 'KDA 页内 padding', bytes: stateLayers * stateCopies * padding,
         shape: 'KDA 页尾补齐到 MLA 的单层页宽',
         formula: `${stateLayers} 层 × ${stateCopies} 份 × (${mainPage} − ${state}) B`, tags: ['LBNHC'] },
@@ -172,13 +181,13 @@
     const bytes = (historyIds + stateIds + draftIds) * bytesPerId;
     if (rows.reduce((sum, row) => sum + row.bytes, 0) !== bytes) throw new Error('Kimi-K3 分项与整页计费不一致');
     const pages = { main: mainPage, index: 0, draft: draftInfo ? mainPage : 0, state, conv, recurrent, padding };
-    return { input, limit, coverage: localBlock, historyIds, stateCopies, stateIds, poolLayers, draftInfo, bytesPerId,
+    return { input, limit, coverage, historyIds, stateCopies, stateIds, poolLayers, draftInfo, bytesPerId,
       pages, regions: { main: mainLayers * mainPage, index: 0, draft: sharedDraftLayers * mainPage }, rows, bytes,
       requestedBlock: localBlock, localBlock, upstreamQuantumBytes: mainPage, alignmentMultiple: 1 };
   }
 
   const model = { Ki, inputs, defaultBlock, platforms, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup,
-    draftLayers, k3Preset, calculate, calculateK3 };
+    draftLayers, k3Preset, k3Platforms, calculate, calculateK3 };
   if (typeof module !== 'undefined') module.exports = model;
   else root.KVCache = model;
 })(globalThis);

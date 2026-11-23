@@ -59,10 +59,10 @@
     </details>
     <details id="k3-method" hidden>
       <summary>Kimi-K3 的对齐原理与计算口径</summary>
-      <p>固定 950DT、DP4 / TP8、BF16、768 token / 卡。单卡 MLA 页为 <code>768 × (512 + 64) × 2 = 884,736 B</code>。KDA 单层状态用同一页宽，3 组各占 23 个存储行，组间 block ID 互斥。估算按单请求稳态 Decode、各档用满 token 预算、无前缀复用。</p>
-      <p>MLA Draft 的 3 层档对应 Inferact Block5。5 层档沿用同样的 BF16 页宽与完整历史共享规则做结构对照，两档的 Draft 行都接在 24 个目标 MLA 行之后。GQA Draft 使用 RadixArk 的 5 层配置。图按上游独立 GQA 组与等页宽分配规则推算，GQA 使用自己的 block ID，映射到整池前 5 行。</p>
-      <p>两档均为布局和容量推算。GQA 的分组与页步长需用实际 Ascend 启动结果验证。权重、图内存及 RecoverSSM records 另计。</p>
-      <p class="sources"><a href="https://docs.vllm.ai/projects/ascend/en/main/tutorials/models/Kimi-K3.html#basic-eight-node-pd-separation-deployment">Kimi-K3 Ascend 模板</a><a href="https://huggingface.co/Inferact/Kimi-K3-DSpark-Block5/blob/a202601f9043e965516e3965d02322a1b8f10310/config.json">MLA Draft 配置</a><a href="https://huggingface.co/RadixArk/Kimi-K3-DSpark/blob/9c4b2577dacb572ce88e8aad4357dffb4f6c9796/config.json">GQA Draft 配置</a><a href="https://github.com/vllm-project/vllm/blob/main/vllm/models/kimi_k3/nvidia/gqa_draft.py#L30-L69">上游 GQA 分组</a></p>
+      <p>950DT 页宽为 <code>768 × (512 + 64) × 2 = 884,736 B</code>。A3 页宽为 <code>384 × (512 + 64) × 2 = 442,368 B</code>。A3 的 1M Decode 模板使用 DP4 / DCP16 / TP16，每个逻辑 block 覆盖 6,144 token。关闭 DCP 后，每块覆盖 384 token。KDA 按 TP 分头，A3 每卡 6 头。3 个 KDA 组各占 23 个存储行，按相同 MLA 页宽补齐，组间 block ID 互斥。</p>
+      <p>950DT 默认使用 Inferact Block5 的 3 层 MLA Draft。A3 默认使用 Eco-Tech 的 5 层 MLA Draft、DSpark 7 token。另一层数档用相同规则做容量对照。MLA Draft 行接在 24 个目标 MLA 行之后，共用历史 block ID。GQA Draft 以 RadixArk 的 5 层配置推算，使用独立 block ID，占整池前 5 行。</p>
+      <p>按单请求稳态 Decode、各档用满 token 预算、无前缀复用估算。A3 的 DCP 关闭拓扑对应 256K 模板，1M 列在该拓扑下仅用于容量推算。GQA 的分组与页步长待 Ascend 实测。权重、图内存及 RecoverSSM records 另计。</p>
+      <p class="sources"><a href="https://docs.vllm.ai/projects/ascend/en/main/tutorials/models/Kimi-K3.html#53-long-context-and-1m-pd-separation-deployment">Kimi-K3 1M Decode 模板</a><a href="https://modelscope.cn/models/Eco-Tech/Kimi-K3-DSpark-MLA-NPU">A3 MLA Draft 权重</a><a href="https://huggingface.co/Inferact/Kimi-K3-DSpark-Block5/blob/a202601f9043e965516e3965d02322a1b8f10310/config.json">950DT MLA Draft 配置</a><a href="https://huggingface.co/RadixArk/Kimi-K3-DSpark/blob/9c4b2577dacb572ce88e8aad4357dffb4f6c9796/config.json">GQA Draft 配置</a><a href="https://github.com/vllm-project/vllm/blob/main/vllm/models/kimi_k3/nvidia/gqa_draft.py#L30-L69">上游 GQA 分组</a></p>
     </details>
     <details id="k31-method">
       <summary>对齐原理与计算口径</summary>
@@ -89,6 +89,6 @@
   <div class="dialog-head"><div><h2 id="detail-title">占用明细</h2><p id="detail-caption" class="caption"></p></div><form method="dialog"><button>关闭</button></form></div>
   <div id="detail-rows"></div>
 </dialog>
-<script src="model.js?v=18" defer></script>
-<script src="app.js?v=30" defer></script>
+<script src="model.js?v=19" defer></script>
+<script src="app.js?v=31" defer></script>
 </html>
