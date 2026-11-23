@@ -29,7 +29,7 @@
   const layersPerStateGroup = stateLayers / stateGroups;
   const draftLayers = 5;
   const dim = 128;
-  const k3Preset = { blockSize: 768, tp: 8, mlaDraftLayers: 3, gqaDraftLayers: 5, gqaKvHeads: 16, gqaHeadDim: 64 };
+  const k3Preset = { blockSize: 768, tp: 8, mlaDraftLayerOptions: [3, 5], gqaDraftLayers: 5, gqaKvHeads: 16, gqaHeadDim: 64 };
 
   function kdaGeometry(tp, spec) {
     const heads = 96 / tp;
@@ -108,9 +108,10 @@
       requestedBlock, localBlock, upstreamQuantumBytes, alignmentMultiple };
   }
 
-  function calculateK3(input, { recover, spec, draftKind = 'mla' }) {
+  function calculateK3(input, { recover, spec, draftKind = 'mla', mlaDraftLayerCount = k3Preset.mlaDraftLayerOptions[0] }) {
     if (draftKind !== 'mla' && draftKind !== 'gqa') throw new RangeError('不支持此 Draft 类型');
     const gqa = draftKind === 'gqa';
+    if (!gqa && !k3Preset.mlaDraftLayerOptions.includes(mlaDraftLayerCount)) throw new RangeError('MLA Draft 层数可选 3 或 5');
     if (!Number.isInteger(spec) || spec < 0 || spec > (gqa ? 7 : 5) || (recover && !spec)) {
       throw new RangeError('不支持此 Kimi-K3 投机配置');
     }
@@ -124,7 +125,7 @@
     const tokenBytes = mlaFormats.BF16.tokenBytes;
     const mainPage = localBlock * tokenBytes;
     const padding = mainPage - state;
-    const draftLayerCount = spec ? (gqa ? k3Preset.gqaDraftLayers : k3Preset.mlaDraftLayers) : 0;
+    const draftLayerCount = spec ? (gqa ? k3Preset.gqaDraftLayers : mlaDraftLayerCount) : 0;
     const gqaHeads = k3Preset.gqaKvHeads / tp;
     const draftTokenBytes = gqa ? 2 * gqaHeads * k3Preset.gqaHeadDim * 2 : tokenBytes;
     const draftPayload = localBlock * draftTokenBytes;

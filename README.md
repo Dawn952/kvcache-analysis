@@ -6,7 +6,7 @@ Kimi-K3.1 Pro 在 Ascend 950DT 上可选 `DP4 / DCP8 / TP8` 或 `DP4 / TP8`。�
 
 机型选择器包含 Atlas 800I A3 的 W4A8 场景。A3 采用公开 1M Decode 模板的 `DP4 / DCP16 / TP16`、`block-size 768` 和 DSpark3，主 MLA 与 Indexer 使用 INT8，draft MLA 使用 BF16。RecoverSSM 默认关闭，打开后的单卡占用按源码推算。
 
-模型选择器包含 Kimi-K3 的 `LBNHC` 场景，固定 950DT、DP4 / TP8、BF16 和 768 token / 卡。MLA Draft 采用 Inferact Block5 的 3 层配置，按完整历史共享组推算。GQA Draft 采用 RadixArk 的 5 层配置，按上游独立缓存组推算。图中标出 KDA 和 GQA 的页内 padding、各组未使用的层槽与 MLA Draft 的存储行。两档的显存估算均为源码与配置推算，GQA 的 Ascend 布局待实测。
+模型选择器包含 Kimi-K3 的 `LBNHC` 场景，固定 950DT、DP4 / TP8、BF16 和 768 token / 卡。MLA Draft 默认 3 层，对应 Inferact Block5，也可以选同页宽、同完整历史共享规则的 5 层推算。GQA Draft 采用 RadixArk 的 5 层配置，按上游独立缓存组推算。图中标出 KDA 和 GQA 的页内 padding、各组未使用的层槽与 MLA Draft 的存储行。GQA 的 Ascend 布局待实测。
 
 950DT 的 `--block-size` 可在 640、1024、1408 和 1536 之间切换，默认传入 1536。页面按固定版上游选块规则推算生效值，再按 Ascend 打包后的页宽计算显存。1536 token 的 DCP8 页几何有 A5 Atlas 历史日志。A3 的 paired 页几何按公开模板及源码复核。
 

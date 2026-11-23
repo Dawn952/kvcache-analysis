@@ -14,6 +14,7 @@ const mlaDtype = byId('mla-dtype');
 const indexDtype = byId('index-dtype');
 const draftDtype = byId('draft-dtype');
 const draftKind = byId('draft-kind');
+const mlaDraftLayers = byId('mla-draft-layers');
 const blockSize = byId('block-size');
 const results = byId('results');
 const layout = byId('layout');
@@ -44,7 +45,11 @@ function describe({ recover: enabled, spec: count }) {
 }
 
 function geometryEvidence(value, config) {
-  if (config.modelId === 'k3') return config.spec && config.draftKind === 'gqa' ? '上游分组推算 · Ascend 页布局待实测' : '布局推算 · 未实测';
+  if (config.modelId === 'k3') {
+    if (value.draftInfo?.kind === 'GQA') return '上游分组推算 · Ascend 页布局待实测';
+    if (value.draftInfo?.layers === 5) return '5 层 MLA 结构推算 · 未实测';
+    return '布局推算 · 未实测';
+  }
   if (config.weight === 'native') return '条件推算 · 原生权重加载未验证';
   if (hasAlternateDtype(config)) return 'dtype 对照 · 部署未验证';
   if (config.platform === 'a3') return '模板与源码复核 · 占用推算';
@@ -89,6 +94,7 @@ function selectModel() {
   byId('k3-method').hidden = !k3;
   byId('k31-method').hidden = k3;
   draftKind.value = 'mla';
+  mlaDraftLayers.value = String(k3Preset.mlaDraftLayerOptions[0]);
   selectPlatform();
 }
 
@@ -100,9 +106,11 @@ function render() {
   spec.disabled = !draft.checked;
   draftDtype.disabled = !draft.checked;
   draftKind.disabled = !draft.checked;
+  byId('mla-draft-layers-field').hidden = !k3 || draftKind.value !== 'mla';
+  mlaDraftLayers.disabled = !draft.checked;
   recover.disabled = !draft.checked;
   if (recover.disabled) recover.checked = false;
-  current = { modelId: modelChoice.value, draftKind: draftKind.value, platform: hardware.value,
+  current = { modelId: modelChoice.value, draftKind: draftKind.value, mlaDraftLayerCount: Number(mlaDraftLayers.value), platform: hardware.value,
     weight: weight.value, dcp: Number(scenario.value), recover: recover.checked,
     spec: draft.checked ? Number(spec.value) : 0, requestedBlock: Number(blockSize.value),
     mlaDtype: mlaDtype.value, indexDtype: indexDtype.value, draftDtype: draftDtype.value };
@@ -426,7 +434,8 @@ results.addEventListener('click', (event) => {
   if (button.classList.contains('value')) openDetail(selected);
 });
 
-for (const control of [weight, scenario, recover, draft, spec, blockSize, mlaDtype, indexDtype, draftDtype, draftKind]) control.addEventListener('change', render);
+mlaDraftLayers.replaceChildren(...k3Preset.mlaDraftLayerOptions.map(count => new Option(`${count} 层`, count)));
+for (const control of [weight, scenario, recover, draft, spec, blockSize, mlaDtype, indexDtype, draftDtype, draftKind, mlaDraftLayers]) control.addEventListener('change', render);
 hardware.addEventListener('change', selectPlatform);
 modelChoice.addEventListener('change', selectModel);
 byId('reset').addEventListener('click', () => {
