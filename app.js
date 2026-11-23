@@ -46,17 +46,20 @@ function describe({ recover: enabled, spec: count }) {
 
 function geometryEvidence(value, config) {
   if (config.modelId === 'k3') {
-    if (value.draftInfo?.kind === 'GQA') return '上游分组推算 · Ascend 页布局待实测';
-    if (config.platform === 'a3') {
-      return value.draftInfo?.layers === 3 ? '3 层 MLA 结构推算 · 未实测' : 'A3 模板页几何 · 占用推算';
+    if (value.draftInfo?.kind === 'GQA') return 'GQA 分组推算';
+    if (config.platform === 'a3' && config.dcp === 16 && !config.recover && config.spec === 7 && value.draftInfo?.layers === 5) {
+      return '页几何参考 A3 部署模板';
     }
-    if (value.draftInfo?.layers === 5) return '5 层 MLA 结构推算 · 未实测';
-    return '布局推算 · 未实测';
+    return '当前布局按配置推算';
   }
-  if (config.weight === 'native') return '条件推算 · 原生权重加载未验证';
+  if (config.weight === 'native') return '原生权重加载待验证';
   if (hasAlternateDtype(config)) return 'dtype 对照 · 部署未验证';
-  if (config.platform === 'a3') return '模板与源码复核 · 占用推算';
-  return config.dcp === 8 && value.localBlock === defaultBlock ? '页几何有启动日志 · 占用推算' : '源码推算 · 未实测';
+  const baseline = config.weight === platforms[config.platform].weights[0] && config.dcp === platforms[config.platform].dcp;
+  if (baseline && config.spec === 3 && config.recover === platforms[config.platform].recover) {
+    if (config.platform === 'a3') return '页几何参考 A3 模板与源码';
+    if (value.requestedBlock === defaultBlock) return '页宽有历史启动日志';
+  }
+  return '当前布局按配置推算';
 }
 
 function hasAlternateDtype(config) {
@@ -92,7 +95,7 @@ function selectModel(preferredHardware = hardware.value) {
   if (Object.hasOwn(platforms, preferredHardware)) hardware.value = preferredHardware;
   byId('page-title').textContent = document.title = `${modelName} KVCache 对比台`;
   byId('layout-title').textContent = `${modelName} 的 LBNHC 布局`;
-  byId('attention-options-title').textContent = k3 ? 'MLA' : 'DSA';
+  byId('attention-options-title').textContent = k3 ? 'MLA 历史缓存' : 'DSA 稀疏注意力';
   byId('index-dtype-field').hidden = k3;
   byId('draft-kind-field').hidden = !k3;
   byId('k3-method').hidden = !k3;
@@ -112,21 +115,20 @@ function render() {
   byId('mla-draft-layers-field').hidden = !k3 || draftKind.value !== 'mla';
   mlaDraftLayers.disabled = !draft.checked;
   recover.disabled = !draft.checked;
-  if (recover.disabled) recover.checked = false;
   current = { modelId: modelChoice.value, draftKind: draftKind.value, mlaDraftLayerCount: Number(mlaDraftLayers.value), platform: hardware.value,
-    weight: weight.value, dcp: Number(scenario.value), recover: recover.checked,
+    weight: weight.value, dcp: Number(scenario.value), recover: draft.checked && recover.checked,
     spec: draft.checked ? Number(spec.value) : 0, requestedBlock: Number(blockSize.value),
     mlaDtype: mlaDtype.value, indexDtype: indexDtype.value, draftDtype: draftDtype.value };
   byId('native-weight-note').hidden = current.weight !== 'native';
   byId('dtype-note').hidden = k3 || !hasAlternateDtype(current);
   const headings = lengths.map((length, index) =>
-    `<th scope="col"><button type="button" class="length" data-row="${index}">${length}</button></th>`).join('');
+    `<th scope="col" role="columnheader"><button type="button" class="length" data-row="${index}" aria-controls="cache-layout">${length}</button></th>`).join('');
   const values = inputs.map((input, index) => {
     const value = memory(calculate(input, current).bytes);
-    return `<td><button type="button" class="value" data-row="${index}" aria-label="${lengths[index]}，${value}，查看明细">${value}</button></td>`;
+    return `<td role="cell"><button type="button" class="value" data-row="${index}" aria-haspopup="dialog" aria-label="${lengths[index]}，${value}，查看明细">${value}</button></td>`;
   }).join('');
-  results.tHead.rows[0].innerHTML = `<th scope="col">max-model-len</th>${headings}`;
-  results.tBodies[0].innerHTML = `<tr><th scope="row">估算显存</th>${values}</tr>`;
+  results.tHead.rows[0].innerHTML = `<th scope="col" role="columnheader">max-model-len</th>${headings}`;
+  results.tBodies[0].innerHTML = `<tr role="row"><th scope="row" role="rowheader">估算显存</th>${values}</tr>`;
   updateSelection();
 }
 
@@ -155,6 +157,23 @@ function renderBlockSize({ requestedBlock, localBlock, upstreamQuantumBytes, ali
   return `${requestedBlock} → <button type="button" class="explanation-toggle" aria-controls="block-adjustment" aria-expanded="${!blockAdjustment.hidden}">${effective}</button>`;
 }
 
+function allocationFormula({ historyIds, stateCopies, draftInfo, poolLayers, pages, bytes, bytesPerId }, explainStates = false) {
+  const draftIds = draftInfo?.ids ?? 0;
+  const copies = explainStates && stateCopies > 1
+    ? `<button type="button" class="explanation-toggle" aria-label="解释每组为何有 ${stateCopies} 个状态块" aria-controls="kda-state-explanation" aria-expanded="false">${stateCopies}</button>`
+    : stateCopies;
+  const perId = poolLayers
+    ? `${poolLayers} 层槽 × ${fmt.format(pages.main)} B`
+    : `${mainLayers} × ${fmt.format(pages.main)} B（MLA / KDA） + ${mainLayers} × ${fmt.format(pages.index)} B（Indexer）${pages.draft ? ` + ${draftLayers} × ${fmt.format(pages.draft)} B（Draft）` : ''}`;
+  return `<div class="allocation-formula">
+    <div><strong>${historyIds + stateGroups * stateCopies + draftIds} 个池块 ID</strong><small>${historyIds} MLA 历史 + ${stateGroups} × ${copies} KDA 状态${draftIds ? ` + ${draftIds} GQA Draft` : ''}</small></div>
+    <span aria-hidden="true">×</span>
+    <div><strong>${fmt.format(bytesPerId)} B / ID / 卡</strong><small>${perId}</small></div>
+    <span aria-hidden="true">=</span>
+    <strong class="formula-total">${memory(bytes)} / 卡</strong>
+  </div>`;
+}
+
 function renderLayout() {
   const value = calculate(inputs[selected], current);
   const gqa = Boolean(value.draftInfo?.ids);
@@ -163,9 +182,6 @@ function renderLayout() {
   const groups = Array.from({ length: stateGroups }, (_, index) => index);
   const { pages, regions } = value;
   const stateCount = `${value.stateCopies} 块`;
-  const stateCountLabel = value.stateCopies > 1
-    ? `<button type="button" class="explanation-toggle" aria-controls="kda-state-explanation" aria-expanded="false">${stateCount}</button>`
-    : stateCount;
   const blockMarks = (count) => `<span class="block-marks" aria-hidden="true">${'<i></i>'.repeat(Math.min(count, 12))}${count > 12 ? '<b>…</b>' : ''}</span>`;
   const mainSlots = Array.from({ length: mainLayers }, (_, slot) => {
     const empty = slot === layersPerStateGroup;
@@ -177,20 +193,16 @@ function renderLayout() {
       ? (slot < value.draftInfo.layers ? `<td class="draft">GQA Draft 第 ${slot} 层</td>` : '<td class="empty">空槽</td>') : ''}</tr>`;
   });
   const sideRow = (name, layers, kind, text) => `<tr><th scope="row">${name} 区 × ${layers} 层</th><td class="${kind}">${text}</td>${groups.map(() => '<td class="empty">预留空页</td>').join('')}</tr>`;
-  layoutCaption.innerHTML = `${lengths[selected]} · ${topology(current)} · ${weightLabel(current.weight)} · ${describe(current)} · block ${renderBlockSize(value)} · ${geometryEvidence(value, current)}`;
+  byId('results-evidence').textContent = geometryEvidence(value, current) + '。';
+  layoutCaption.innerHTML = `${lengths[selected]} · ${topology(current)} · ${describe(current)} · 生效页大小 ${renderBlockSize(value)}`;
   byId('layout-summary').innerHTML = `
-    <div class="flow">
-      <div><small>MLA 历史 blocks</small><strong>${value.historyIds} 个</strong><small>⌈${fmt.format(value.limit)} ÷ ${fmt.format(value.coverage)}⌉</small></div>
-      <div><small>KDA 常驻状态块</small><strong>3 组 × ${stateCountLabel}</strong><small>每组 23 层，持有各自的 ID</small></div>
-      <div><small>一个逻辑 block 的显存 / 卡</small><strong>${memory(value.bytesPerId)}</strong><small>${fmt.format(value.bytesPerId)} B</small></div>
-      <div><small>请求合计 / 卡</small><strong>${memory(value.bytes)}</strong><small>(${value.historyIds} + ${value.stateIds}${gqa ? ` + ${separateDraftIds}` : ''}) × 单 block 显存</small></div>
-    </div>
+    ${allocationFormula(value, true)}
     ${value.stateCopies > 1 ? `<p id="kda-state-explanation" class="caption inline-explanation" hidden>RecoverSSM 关闭时，KDA 为每个投机 token 位置保留一份候选状态，验证后按实际接受的长度选取下一轮解码所需的状态。当前 <code>spec_num = ${current.spec}</code>，所以每组是 <strong>1 块运行状态 + ${current.spec} 块投机状态 = ${stateCount}</strong>。三组共 ${value.stateIds} 块。</p>` : ''}`;
   renderLayoutVisual(value);
+  renderTrace();
   layout.innerHTML = `
     <div class="axis-key" id="layout-reading-guide">
-      <div><strong>纵向看存储行（L）。</strong> 例如第 0 行存放模型第 3 层的 MLA，以及第 0、1、2 层的 KDA。</div>
-      <div><strong>横向看缓存块（B）。</strong> B 是缓存池中的块编号。同一组的各层共用一批编号，列标题显示这一组占用多少块。</div>
+      <div>第 0 个存储行用不同的池块 ID 分别存模型第 3 层的 MLA，以及第 0、1、2 层的 KDA。</div>
     </div>
     <div class="scroll"><table class="pool-map" aria-describedby="layout-reading-guide">
       <caption>${current.modelId === 'k3' ? 'Kimi-K3 的物理存储行' : 'MLA / KDA 共用区，以及独立的 Indexer / Draft 区'}</caption>
@@ -210,13 +222,21 @@ function renderLayout() {
     <p class="caption">MLA 历史块数按逻辑覆盖取整，投机预留受本档 <code>max-model-len</code> 限制。KDA 每组常驻 1 个运行状态块，RecoverSSM 关闭时再计 <code>spec_num</code> 个投机状态块。</p>`;
 }
 
-function renderLayoutVisual(value) {
+function sampleBlockIds(count, active = 0) {
+  const ids = [...new Set([0, 1, active, count - 1].filter(id => id >= 0 && id < count))].sort((left, right) => left - right);
+  return ids.flatMap((id, index) => index > 0 && id - ids[index - 1] > 1 ? [null, id] : [id]);
+}
+
+function renderLayoutVisual(value, focusBlock = false) {
   const { historyIds, stateCopies, stateIds, pages, limit, coverage, draftInfo } = value;
   const k3 = current.modelId === 'k3';
   const previousScroll = layoutVisual.querySelector('.visual-block-scroll')?.scrollLeft ?? 0;
+  const pageDetails = focusBlock ? layoutVisual.querySelector('.visual-block-detail') : null;
   const scrollLeft = selectedMlaId < historyIds ? previousScroll : 0;
   if (selectedMlaId >= historyIds) selectedMlaId = 0;
   const selectedPoolId = examplePoolId(selectedMlaId);
+  const samples = sampleBlockIds(historyIds, selectedMlaId);
+  const gap = '<span class="visual-gap" aria-hidden="true">…</span>';
   const pools = [{ label: 'MLA 历史', count: historyIds, start: 0 }];
   for (let group = 0; group < stateGroups; group++) {
     pools.push({ label: `KDA 第 ${group + 1} 组`, count: stateCopies, start: historyIds + group * stateCopies });
@@ -231,12 +251,12 @@ function renderLayoutVisual(value) {
 
   const strip = (pool, kind, label) => `<div class="visual-block-group"><small>${label}</small>
     <div class="visual-block-strip" role="img" aria-label="${label}，${pool.count} 个池 block${kind === 'kda' ? `，1 个运行状态 block${pool.count > 1 ? `，${pool.count - 1} 个投机状态 block` : ''}` : ''}">
-    ${Array.from({ length: pool.count }, (_, index) => {
+    ${(pool.start === 0 ? samples : sampleBlockIds(pool.count)).map((index) => {
+      if (index === null) return gap;
       const id = pool.start + index;
       const usage = kind === 'kda' ? (index ? '投机状态' : '运行状态') : label;
       const scratch = kind === 'kda' && index ? ' speculative' : '';
-      const shared = kind === 'mla' || (k3 && kind === 'draft' && !gqaPool);
-      const mlaId = shared ? ` data-mla-block="${id}"${id === selectedMlaId ? ' data-matched' : ''}` : '';
+      const mlaId = pool.start === 0 ? ` data-mla-block="${id}"${id === selectedMlaId ? ' data-matched' : ''}` : '';
       return `<span class="visual-block ${kind}${scratch}"${mlaId} title="池 block ${examplePoolId(id)} · ${usage}" aria-hidden="true">${examplePoolId(id)}</span>`;
     }).join('')}</div></div>`;
 
@@ -253,92 +273,121 @@ function renderLayoutVisual(value) {
       <td>${strip(pools[0], region.kind, historyLabel)}</td>${kdaCells}${draftCell}</tr>`;
   };
 
+  const activeTokens = Math.min(coverage, limit - selectedMlaId * coverage);
+  const unusedTokens = historyIds * coverage - limit;
   layoutVisual.innerHTML = `
-    <p id="visual-block-guide" class="caption">以第 ${mlaLayer(0)} 层 MLA 为例，每个覆盖 <strong>${fmt.format(coverage)} token</strong> 的逻辑 block 对应本卡 <strong>1 个池 block</strong>（图中一格）。本请求的 MLA 历史共占 <strong>${historyIds} 个 block</strong>。</p>
-    <div class="mla-block-lookup" aria-live="polite">
-      <span>请求逻辑 block <strong id="mla-logical-number">${selectedMlaId}</strong></span>
-      <span aria-hidden="true">→</span><span>MLA 组的 block table</span><span aria-hidden="true">→</span>
-      <strong>示例池 block <span id="mla-pool-number">${selectedPoolId}</span></strong>
+    <h3>从请求到单卡物理页</h3>
+    <div class="block-path" id="visual-block-guide">
+      <div><small>请求长度上限</small><strong>${fmt.format(limit)} token</strong></div>
+      <div><small>MLA 逻辑块</small><strong>${fmt.format(historyIds)} 块</strong><small>每块覆盖 ${fmt.format(coverage)} token</small></div>
+      <div><small>每层的单卡物理页</small><strong>${fmt.format(value.localBlock)} token</strong><small>${current.dcp} 卡共同覆盖一个逻辑块</small></div>
     </div>
-    <p class="caption">同一段 token 由 MLA 组统一分配。各层查同一张表，再在自己的存储行读写 KV。</p>
-    ${k3 ? `<div class="axis-key k3-placement">
-      <div><strong>KDA 对齐。</strong> 每组 23 层与 MLA 共用 ${fmt.format(pages.main)} B 的页步长。每个 KDA ID 留出 ${value.poolLayers - layersPerStateGroup} 个空层槽。</div>
-      ${draftInfo ? `<div><strong>Draft 放在哪。</strong> ${gqaPool
-        ? `GQA 有自己的 block table。其 ID 在同一物理池使用第 0–${draftInfo.layers - 1} 行，其余 ${value.poolLayers - draftInfo.layers} 行是空层槽。`
-        : `MLA Draft 共用历史 block ID，物理存储接在主模型后面的第 ${draftInfo.startRow}–${draftInfo.startRow + draftInfo.layers - 1} 行。KDA 的 ID 在这些行是空槽。`}</div>` : ''}
-    </div>` : ''}
+    <div class="mla-block-lookup">
+      <form id="block-search" class="block-search">
+        <label>请求块号 <input id="logical-block-input" type="number" min="0" max="${historyIds - 1}" step="1" value="${selectedMlaId}" required aria-describedby="block-input-help"></label>
+        <button type="submit">定位</button>
+        <small id="block-input-help">0–${fmt.format(historyIds - 1)}</small>
+      </form>
+      <strong aria-live="polite">请求块 ${selectedMlaId} → 池块 ID ${selectedPoolId}（示例）</strong>
+    </div>
+    <p class="caption">块表（<code>block_table</code>）记录请求块号到池块 ID 的映射。各 MLA 层用同一个 ID 在自己的存储行读写。当前逻辑块已用 ${fmt.format(activeTokens)} token${current.dcp > 1 ? '（各卡合计）' : ''}。</p>
+    ${k3 ? (draftInfo ? `<p class="caption"><strong>Draft 放在哪。</strong> ${gqaPool
+        ? `GQA 有独立块表。其 ID 在同一物理池使用第 0–${draftInfo.layers - 1} 行，其余 ${value.poolLayers - draftInfo.layers} 行是空层槽。`
+        : `MLA Draft 共用历史池块 ID，存储接在主模型后面的第 ${draftInfo.startRow}–${draftInfo.startRow + draftInfo.layers - 1} 行。KDA 的 ID 在这些行是空槽。`}</p>` : '')
+      : `<p class="caption">Indexer 独立存放用于筛选历史 token 的索引 K，沿用目标 MLA 的历史池块 ID。${pages.draft ? '草稿 MLA 也用同一 ID 在自己的存储区寻址。' : ''}</p>`}
     <div class="visual-block-nav" role="group" aria-label="跳到缓存组">${pools.map((pool, group) => `<button type="button" data-block-group="${group}">${pool.label} <span>· ${pool.count} 个 block</span></button>`).join('')}</div>
-    <div class="physical-block-order" role="group" aria-label="MLA / KDA 共用区整池物理顺序">
-      <strong>整池连续排布</strong><code>L → B → N → H → C</code>
-      <span>固定存储行 L</span>
-      <div class="visual-block-strip" aria-label="相邻池 block 示例" role="group">
-        <span class="visual-block" id="physical-block-prev">${selectedPoolId - 1}</span>
-        <span class="visual-block physical-order-focus" id="physical-block-current">${selectedPoolId}</span>
-        <span class="visual-block" id="physical-block-next">${selectedPoolId + 1}</span>
-      </div>
-      <strong>block ID 与地址递增 →</strong>
-      <span>相邻 block 起点相差 ${fmt.format(pages.main)} 字节</span>
-    </div>
+    <p class="caption">同一存储行内，不同组的池块可存不同模型层。每格是一层在一个池块 ID 下的单卡页。</p>
     <div class="scroll visual-block-scroll" tabindex="0" role="region" aria-label="缓存 block 图，可横向滚动">
       <table class="visual-block-map" aria-describedby="visual-block-guide">
         <thead><tr><th scope="col">存储行（L）</th>
           <th scope="col">${pools[0].label}<small title="请求 token 数 ÷ 每个逻辑 block 覆盖的 token 数，向上取整">⌈${fmt.format(limit)} ÷ ${fmt.format(coverage)}⌉ = ${historyIds} 个 block</small>
             <small>逻辑 block 编号 · 点击查看查表结果</small>
             <div class="visual-block-strip" role="group" aria-label="MLA 逻辑 block 编号，可用左右方向键切换">
-              ${Array.from({ length: historyIds }, (_, id) => `<button type="button" class="visual-block visual-block-id" data-mla-id="${id}" tabindex="${id === selectedMlaId ? 0 : -1}" aria-pressed="${id === selectedMlaId}" aria-label="逻辑 block ${id} 对应示例池 block ${examplePoolId(id)}">${id}</button>`).join('')}
+              ${samples.map(id => id === null ? gap : `<button type="button" class="visual-block visual-block-id" data-mla-id="${id}" tabindex="${id === selectedMlaId ? 0 : -1}" aria-pressed="${id === selectedMlaId}" aria-label="请求块 ${id}，对应示例池块 ${examplePoolId(id)}">${id}</button>`).join('')}
             </div>
           </th>
           ${pools.slice(1).map((pool) => `<th scope="col">${pool.label}<small>${pool.count} 个 block</small></th>`).join('')}
         </tr></thead>
-        ${regions.map((region) => `<tbody>${(k3 && region.kind === 'mla' ? [0, 1, layersPerStateGroup] : [0, 1])
+        ${regions.map((region) => `<tbody>${(region.kind === 'mla' ? [0, 1, layersPerStateGroup] : [0, 1])
           .map((slot) => renderRow(region, slot)).join('')}</tbody>`).join('')}
       </table>
     </div>
-    <p class="caption">${k3 ? '图中抽样展示存储行，完整层表见下方。' : '各区域只画前两行。'}表格按请求顺序和缓存组排列，分到的池 block ID 可以跳号。斜纹是空层槽或预留空页。${stateCopies > 1 ? 'KDA 中的虚线格表示投机状态。' : ''}</p>
-    ${pages.draft ? '' : '<p class="caption">DSpark 已关闭，当前配置没有 Draft 区。</p>'}
-    <details class="visual-block-detail" open><summary>${draftInfo ? 'MLA、KDA 与 Draft 的页内字节比例' : 'MLA 与 KDA 单个 block 内部的字节比例'}</summary>${renderBlockZoom(value, current.dcp)}</details>`;
-  layoutVisual.querySelector('.visual-block-scroll').scrollLeft = scrollLeft;
+    <p class="caption">省略号表示中间块。示例池块号可以跳号。斜纹表示空槽，虚线表示投机状态。</p>
+    <div class="space-guide">
+      <div><small>请求尾块未填</small><strong>${fmt.format(unusedTokens)} token</strong><small>按整个逻辑块计</small></div>
+      <div><small>KDA 页内对齐填充</small><strong>${fmt.format(pages.padding)} B</strong><small>每层每页</small></div>
+      <div><small>KDA 池块的空层槽</small><strong>${(value.poolLayers ?? mainLayers) - layersPerStateGroup} 个</strong><small>每个 KDA 池块 ID 的共用区${pages.index ? '，侧区另计' : ''}</small></div>
+    </div>
+    <div class="physical-block-order" role="group" aria-label="MLA / KDA 共用区整池物理顺序">
+      <strong>固定存储行 L</strong>
+      <div class="visual-block-strip" aria-label="实际地址顺序的相邻池块编号示例" role="group">
+        <span class="visual-block">${selectedPoolId - 1}</span>
+        <span class="visual-block physical-order-focus">${selectedPoolId}</span>
+        <span class="visual-block">${selectedPoolId + 1}</span>
+      </div>
+      <strong>池块 ID 与地址递增 →</strong><span>相邻页起点相差 ${fmt.format(pages.main)} B</span>
+    </div>
+    ${pageDetails ? '' : `<details class="visual-block-detail" open><summary>单卡页内字节比例</summary>${renderBlockZoom(value)}</details>`}`;
+  if (pageDetails) layoutVisual.append(pageDetails);
+  const scroller = layoutVisual.querySelector('.visual-block-scroll');
+  scroller.scrollLeft = scrollLeft;
+  if (focusBlock) {
+    const activeButton = layoutVisual.querySelector(`[data-mla-id="${selectedMlaId}"]`);
+    activeButton.focus({ preventScroll: true });
+    activeButton.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    const buttonRect = activeButton.getBoundingClientRect();
+    const pinnedRight = scroller.querySelector('thead th').getBoundingClientRect().right;
+    const visibleRight = scroller.getBoundingClientRect().right;
+    const center = pinnedRight + (visibleRight - pinnedRight - buttonRect.width) / 2;
+    scroller.scrollLeft += buttonRect.left - center;
+  }
 }
 
-function renderBlockZoom({ coverage, pages, localBlock, requestedBlock, upstreamQuantumBytes, alignmentMultiple, draftInfo }, dcp) {
+function renderBlockZoom({ pages, localBlock, draftInfo }) {
   const tiles = localBlock / mlaKernelBlock;
   const tileBytes = pages.main / tiles;
   const mlaParts = Array.from({ length: tiles }, (_, index) => ({
     label: `Kernel 小块 ${index + 1}`, bytes: tileBytes, css: 'mla', text: index + 1,
   }));
   const kdaParts = [
-    { label: 'Conv', bytes: pages.conv, css: 'conv' },
-    { label: 'Recurrent', bytes: pages.recurrent, css: 'kda' },
-    { label: 'Padding', bytes: pages.padding, css: 'empty' },
-  ];
+    { label: '卷积历史（Conv）', bytes: pages.conv, css: 'conv' },
+    { label: '递推状态（Recurrent）', bytes: pages.recurrent, css: 'kda' },
+    { label: '对齐填充（Padding）', bytes: pages.padding, css: 'empty' },
+  ].filter(part => part.bytes > 0);
   const draftParts = draftInfo ? [
     { label: draftInfo.kind === 'GQA' ? 'K / V 有效载荷' : 'MLA 有效载荷', bytes: draftInfo.payload, css: 'draft' },
     ...(draftInfo.padding ? [{ label: 'Draft 页内 padding', bytes: draftInfo.padding, css: 'empty' }] : []),
   ] : [];
-  const track = (name, parts) => {
+  const track = (name, parts, withLegend = false) => {
     let offset = 0;
-    const buttons = parts.map(({ label, bytes, css, text }) => {
+    const segments = parts.map(({ label, bytes, css, text }) => {
       const start = offset;
       offset += bytes;
       const caption = `${label} · ${fmt.format(bytes)} B · 偏移 [${fmt.format(start)}, ${fmt.format(offset)}) B`;
-      return `<button type="button" class="byte-segment ${css}" data-byte-caption="${caption}" aria-label="${name} ${caption}" title="${caption}">${text ?? ''}</button>`;
+      return { bytes, caption, css, label, text };
     });
+    const buttons = segments.map(({ caption, css, text }) => `<button type="button" class="byte-segment ${css}" data-byte-caption="${caption}" aria-label="${name} ${caption}" title="${caption}">${text ?? ''}</button>`);
     const columns = parts.map(({ bytes }) => `minmax(0, ${bytes}fr)`).join(' ');
-    return `<div class="byte-track" role="group" aria-label="${name}" style="grid-template-columns:${columns}">${buttons.join('')}</div>`;
+    const legend = withLegend ? `<div class="byte-legend">${segments.map(({ bytes, caption, css, label }) => `<button type="button" data-byte-caption="${caption}"><i class="${css}" aria-hidden="true"></i>${label} ${fmt.format(bytes)} B</button>`).join('')}</div>` : '';
+    return `<div class="byte-track" role="group" aria-label="${name}" style="grid-template-columns:${columns}">${buttons.join('')}</div>${legend}`;
   };
+  const sidePage = (label, bytes, dtype, css) => `<div class="side-page">
+    <div class="byte-label"><strong>${label}</strong><span>${dtype} · 独立标尺</span></div>
+    <div class="byte-scale"><span>0 B</span><span>${fmt.format(bytes)} B</span></div>
+    ${track(label, [{ label, bytes, css }])}
+  </div>`;
   return `<div class="block-zoom">
-    <div><strong>调度逻辑大块 · ${fmt.format(coverage)} token</strong><span>${dcp} 卡 × ${fmt.format(localBlock)} token / 卡</span></div>
-    <p class="caption">先选块：${requestedBlock} × ⌈${fmt.format(pages.state)} B ÷ ${fmt.format(upstreamQuantumBytes)} B⌉ = ${requestedBlock} × ${alignmentMultiple} = ${localBlock} token。再按 ${current.mlaDtype} MLA 物理页计算字节宽度。</p>
+    <p class="caption"><code>L → B → N → H → C</code> 依次是存储行、池块 ID、本卡页内 token、KV 头和通道。KDA 状态按 MLA 的单页字节宽度对齐，共用以下标尺。</p>
     <div class="byte-scale" aria-label="单卡物理页内字节偏移"><span>0 B</span><span>${fmt.format(pages.main)} B</span></div>
     <div class="byte-label"><strong>MLA 物理页</strong><span>${current.mlaDtype} · ${tiles} 小块 × ${mlaKernelBlock} token，每小块 ${fmt.format(tileBytes)} B</span></div>
     ${track('MLA 物理页', mlaParts)}
     <div class="byte-label"><strong>KDA 对齐页</strong><span>${fmt.format(pages.state)} B 状态 + ${fmt.format(pages.padding)} B padding</span></div>
-    ${track('KDA 对齐页', kdaParts)}
-    <div class="byte-legend">${kdaParts.map(({ label, bytes, css }) => `<span><i class="${css}" aria-hidden="true"></i>${label} ${fmt.format(bytes)} B</span>`).join('')}</div>
+    ${track('KDA 对齐页', kdaParts, true)}
     ${draftInfo ? `<div class="byte-label"><strong>${draftInfo.kind} Draft 页</strong><span>${fmt.format(draftInfo.payload)} B 有效数据 · ${fmt.format(draftInfo.padding)} B padding</span></div>
-      ${track(`${draftInfo.kind} Draft 页`, draftParts)}` : ''}
+      ${track(`${draftInfo.kind} Draft 页`, draftParts, Boolean(draftInfo.padding))}` : ''}
+    ${pages.index ? sidePage('Indexer 页', pages.index, current.indexDtype, 'indexer') : ''}
+    ${pages.index && pages.draft ? sidePage('Draft MLA 页', pages.draft, current.draftDtype, 'draft') : ''}
     <p data-byte-readout class="caption" aria-live="polite">点击任意分段查看页内字节偏移。</p>
-    <p class="caption">各行使用同一字节标尺。KDA 对齐到单卡 MLA 的整页宽度 ${fmt.format(pages.main)} B。</p>
   </div>`;
 }
 
@@ -350,6 +399,20 @@ function showByteOffset(target) {
   return Boolean(segment);
 }
 
+function renderTrace() {
+  const pinnedAscend = 'https://github.com/Dawn952/vllm-ascend/blob/6fcafe90e9fe4091685935d162a7a3869aa204ee/vllm_ascend';
+  const paired = 'https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend';
+  const k3 = current.modelId === 'k3';
+  byId('trace-content').innerHTML = `
+    <ol class="trace-steps">
+      <li><strong>调度器分配池块 ID</strong><p>按请求进度为各缓存组分配块，把请求块号和池块 ID 写进映射表。</p><a href="https://github.com/vllm-project/vllm/blob/4ba787ec9959e566d3b587a796dff07673324da5/vllm/v1/core/kv_cache_manager.py#L550-L580"><code>allocate_slots</code></a></li>
+      <li><strong>把这一步的 KV 写进页</strong><p>执行器用写入槽位（<code>slot_mapping</code>）定位当前 token 在本卡页内的位置。</p><a href="${k3 ? pinnedAscend + '/attention/mla_v1.py#L3298-L3356' : paired + '/attention/sfa_v1.py#L1765-L1820'}">Ascend KV 写入路径</a></li>
+      <li><strong>注意力读取历史页</strong><p>读取时按块表（<code>block_table</code>）找到历史页，结合本步的序列长度执行注意力。${k3 ? '' : 'Indexer 先筛选参与稀疏注意力的历史位置。'}</p><a href="${k3 ? pinnedAscend + '/attention/mla_v1.py#L2740-L2986' : paired + '/attention/sfa_v1.py#L1723-L1764'}">Ascend 注意力读取路径</a></li>
+    </ol>
+    <p class="trace-state"><strong>KDA 的状态分支</strong> 读取卷积历史与上一份递推状态，计算并更新本步状态。<a href="${pinnedAscend}/ops/kimi_kda.py#L532-L628">KDA 状态读写</a></p>
+    <p class="caption">链接展示对应源码分支。实际 kernel 由当前模型、dtype 和运行配置决定。</p>`;
+}
+
 byId('cache-layout').addEventListener('click', (event) => {
   const button = event.target.closest('.explanation-toggle');
   if (!button) return;
@@ -358,47 +421,38 @@ byId('cache-layout').addEventListener('click', (event) => {
   button.setAttribute('aria-expanded', !explanation.hidden);
 });
 
-function selectMlaId(button) {
-  const previous = button.parentElement.querySelector('[aria-pressed="true"]');
-  if (previous === button) return;
-  previous.setAttribute('aria-pressed', 'false');
-  previous.tabIndex = -1;
-  button.setAttribute('aria-pressed', 'true');
-  button.tabIndex = 0;
-  selectedMlaId = Number(button.dataset.mlaId);
-  byId('mla-logical-number').textContent = selectedMlaId;
-  const poolId = examplePoolId(selectedMlaId);
-  byId('mla-pool-number').textContent = poolId;
-  byId('physical-block-prev').textContent = poolId - 1;
-  byId('physical-block-current').textContent = poolId;
-  byId('physical-block-next').textContent = poolId + 1;
-  for (const block of layoutVisual.querySelectorAll('[data-mla-block][data-matched]')) block.removeAttribute('data-matched');
-  for (const block of layoutVisual.querySelectorAll(`[data-mla-block="${button.dataset.mlaId}"]`)) block.setAttribute('data-matched', '');
+function selectMlaId(id) {
+  const value = calculate(inputs[selected], current);
+  selectedMlaId = Math.max(0, Math.min(id, value.historyIds - 1));
+  renderLayoutVisual(value, true);
 }
 
 layoutVisual.addEventListener('keydown', (event) => {
   const button = event.target.closest('[data-mla-id]');
   if (!button) return;
+  const id = Number(button.dataset.mlaId);
   const targets = {
-    ArrowLeft: button.previousElementSibling,
-    ArrowRight: button.nextElementSibling,
-    Home: button.parentElement.firstElementChild,
-    End: button.parentElement.lastElementChild,
+    ArrowLeft: id - 1,
+    ArrowRight: id + 1,
+    Home: 0,
+    End: Number(byId('logical-block-input').max),
   };
   if (!Object.hasOwn(targets, event.key)) return;
   event.preventDefault();
-  const next = targets[event.key];
-  if (!next) return;
-  selectMlaId(next);
-  next.focus({ preventScroll: true });
-  next.scrollIntoView({ block: 'nearest', inline: 'center' });
+  selectMlaId(targets[event.key]);
+});
+
+layoutVisual.addEventListener('submit', (event) => {
+  if (event.target.id !== 'block-search') return;
+  event.preventDefault();
+  selectMlaId(byId('logical-block-input').valueAsNumber);
 });
 
 layoutVisual.addEventListener('click', (event) => {
   if (showByteOffset(event.target)) return;
   const id = event.target.closest('[data-mla-id]');
   if (id) {
-    selectMlaId(id);
+    selectMlaId(Number(id.dataset.mlaId));
     return;
   }
   const jump = event.target.closest('[data-block-group]');
@@ -424,8 +478,10 @@ function openDetail(row) {
   const config = current;
   const value = calculate(inputs[row], config);
   byId('detail-title').textContent = `${memory(value.bytes)} / 卡`;
-  byId('detail-caption').textContent = `${lengths[row]} · ${topology(config)} · ${weightLabel(config.weight)} · ${describe(config)} · block ${blockInputPrefix(value)}${value.localBlock} token / 卡 · ${geometryEvidence(value, config)}`;
-  byId('detail-rows').innerHTML = `<p class="caption">历史 ID = ⌈${fmt.format(value.limit)} / ${fmt.format(value.coverage)}⌉ = ${value.historyIds}。投机预留受本档 <code>max-model-len</code> 截断。KDA 常驻 = 3 组 × ${value.stateCopies} 块 = ${value.stateIds} ID。${value.draftInfo?.ids ? `GQA Draft 另持有 ${value.draftInfo.ids} 个 ID。` : ''}每个 ID 占 ${memory(value.bytesPerId)} / 卡。</p>${value.rows.map((entry) => `<details class="breakdown"><summary><span>${entry.name}</span><strong>${memory(entry.bytes)}</strong></summary><p>${entry.shape}</p><p><code>${entry.formula} = ${fmt.format(entry.bytes)} B</code></p><p class="tags">${entry.tags.map((tag) => `<span>${tag}</span>`).join('')}</p></details>`).join('')}`;
+  const draftLabel = value.pages.draft ? ` · ${value.draftInfo?.kind ?? 'MLA'} Draft ${value.draftInfo?.layers ?? draftLayers} 层 ${config.draftDtype}` : '';
+  const indexLabel = value.pages.index ? ` · Indexer ${config.indexDtype}` : '';
+  byId('detail-caption').textContent = `${modelChoice.selectedOptions[0].textContent} · ${hardware.selectedOptions[0].textContent} · ${lengths[row]} · ${topology(config)} · ${weightLabel(config.weight)} · ${describe(config)} · block ${blockInputPrefix(value)}${value.localBlock} token / 卡 · MLA ${config.mlaDtype}${indexLabel}${draftLabel} · ${geometryEvidence(value, config)}`;
+  byId('detail-rows').innerHTML = `${allocationFormula(value)}<p class="caption">MLA 历史块数 = ⌈${fmt.format(value.limit)} token ÷ ${fmt.format(value.coverage)} token / 块⌉ = ${value.historyIds}。本估算使用该档的输入和生成上限。</p>${value.rows.map((entry) => `<details class="breakdown"><summary><span>${entry.name}</span><strong>${memory(entry.bytes)}</strong></summary><p>${entry.shape}</p><p><code>${entry.formula} = ${fmt.format(entry.bytes)} B</code></p><p class="tags">${entry.tags.map((tag) => `<span>${tag}</span>`).join('')}</p></details>`).join('')}`;
   detail.showModal();
 }
 
@@ -445,7 +501,7 @@ byId('reset').addEventListener('click', () => {
   selected = 3;
   selectedMlaId = 0;
   layoutVisual.querySelector('.visual-block-scroll').scrollLeft = 0;
-  selectModel(modelChoice.value === 'k3' ? hardware.value : 'a5');
+  selectModel();
 });
 
 const query = new URLSearchParams(location.search);

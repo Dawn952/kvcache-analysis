@@ -3,10 +3,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kimi-K3.1 Pro KVCache 对比台</title>
-<link rel="stylesheet" href="style.css?v=26">
+<link rel="stylesheet" href="style.css?v=27">
 <main>
   <header>
-    <p class="eyebrow">vLLM ASCEND / DECODE</p>
     <h1 id="page-title">Kimi-K3.1 Pro KVCache 对比台</h1>
   </header>
 
@@ -17,19 +16,20 @@
       <label>机型<select id="hardware"><option value="a5">Ascend 950DT</option><option value="a3">Atlas 800I A3</option></select></label>
       <label>权重<select id="weight"><option>W4A8_MXFP</option></select></label>
       <label>典型场景<select id="scenario"><option value="8">DP4 / DCP8 / TP8</option><option value="1">DP4 / TP8</option></select></label>
-      <label for="block-size"><code>--block-size</code><select id="block-size"><option>640</option><option>1024</option><option>1408</option><option selected>1536</option></select></label>
+      <label for="block-size" title="--block-size">请求页大小（token）<select id="block-size"><option>640</option><option>1024</option><option>1408</option><option selected>1536</option></select></label>
     </div>
     <div class="option-groups">
-      <fieldset><legend>KDA</legend><div class="option-fields">
-        <label class="option-toggle"><input type="checkbox" id="recover" checked> RecoverSSM</label>
+      <fieldset><legend>KDA 状态缓存</legend><div class="option-fields">
+        <label class="option-toggle"><input type="checkbox" id="recover" aria-describedby="recover-help" checked> RecoverSSM</label>
+        <small class="option-help" id="recover-help">投机时开启，每组只留 1 个运行状态块</small>
       </div></fieldset>
       <fieldset><legend id="attention-options-title">DSA</legend><div class="option-fields">
         <label>MLA dtype<select id="mla-dtype"></select></label>
-        <label id="index-dtype-field">Indexer dtype<select id="index-dtype"></select></label>
+        <label id="index-dtype-field">索引 K dtype<select id="index-dtype"></select></label>
       </div></fieldset>
-      <fieldset><legend>DSpark</legend><div class="option-fields">
+      <fieldset><legend>DSpark 草稿投机</legend><div class="option-fields">
         <label class="option-toggle"><input type="checkbox" id="draft" checked> 启用 DSpark</label>
-        <label for="spec"><code>spec_num</code><select id="spec"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></label>
+        <label for="spec">每轮草稿 token 数<select id="spec" aria-label="每轮草稿 token 数（spec_num）"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></label>
         <label id="draft-kind-field" hidden>Draft 类型<select id="draft-kind"><option value="mla">MLA</option><option value="gqa">GQA</option></select></label>
         <label id="mla-draft-layers-field" hidden>MLA Draft 层数<select id="mla-draft-layers"></select></label>
         <label>Draft dtype<select id="draft-dtype"></select></label>
@@ -40,22 +40,28 @@
   </section>
 
   <section aria-labelledby="results-title">
-    <h2 id="results-title">单卡 KVCache 占用</h2>
-    <div class="scroll"><table class="results-table" id="results">
-      <thead><tr><th scope="col">max-model-len</th></tr></thead>
-      <tbody></tbody>
+    <h2 id="results-title">单请求 · 单卡 KVCache 估算</h2>
+    <p class="caption" id="results-scope">按稳态 Decode 和输入＋生成上限计算。<span id="results-evidence"></span></p>
+    <div class="scroll"><table class="results-table" id="results" role="table" aria-describedby="results-scope">
+      <thead role="rowgroup"><tr role="row"><th scope="col">max-model-len</th></tr></thead>
+      <tbody role="rowgroup"></tbody>
     </table></div>
   </section>
 
   <section aria-labelledby="layout-title" id="cache-layout">
     <h2 id="layout-title">Kimi-K3.1 Pro 的 LBNHC 布局</h2>
+    <p class="caption layout-intro">共用区先按存储行（L）排，再按池块编号（B）排。</p>
     <p id="layout-caption" class="caption" aria-live="polite"></p>
     <p id="block-adjustment" class="caption inline-explanation" hidden></p>
     <div id="layout-summary"></div>
     <div id="layout-visual"></div>
     <details class="visual-block-detail" open>
-      <summary>查看完整层表与显存分项</summary>
+      <summary>完整存储行与每个池块的显存</summary>
       <div id="layout"></div>
+    </details>
+    <details id="decode-trace">
+      <summary>追踪一次 Decode 读写</summary>
+      <div id="trace-content"></div>
     </details>
     <details id="k3-method" hidden>
       <summary>Kimi-K3 的对齐原理与计算口径</summary>
@@ -90,5 +96,5 @@
   <div id="detail-rows"></div>
 </dialog>
 <script src="model.js?v=19" defer></script>
-<script src="app.js?v=31" defer></script>
+<script src="app.js?v=32" defer></script>
 </html>
