@@ -34,6 +34,8 @@
     a5: { blockSize: 768, dcpOptions: [1], spec: 3, mlaDraftLayers: 3, maxMlaSpec: 5 },
     a3: { blockSize: 384, dcpOptions: [16, 1], spec: 7, mlaDraftLayers: 5, maxMlaSpec: 7 },
   };
+  const customTpOptions = [1, 2, 4, 8];
+  const supportsCustomParallel = (platform, weight) => platform === 'a5' && weight === 'W4A8_MXFP';
 
   function kdaGeometry(tp, spec) {
     const heads = 96 / tp;
@@ -43,10 +45,15 @@
   }
 
   function calculate(input, { platform = 'a5', weight = platforms[platform]?.weights[0], dcp, recover, spec,
+    customParallel = false, dp = 4, tp = platforms[platform]?.tp,
     requestedBlock = platforms[platform]?.defaultBlock, mlaDtype = platforms[platform]?.cacheDtype,
     indexDtype = platforms[platform]?.cacheDtype, draftDtype = 'BF16' }) {
     const preset = platforms[platform];
-    if (!preset || (dcp !== preset.dcp && !(platform === 'a5' && dcp === 1))) {
+    const validParallel = customParallel
+      ? supportsCustomParallel(platform, weight) && Number.isSafeInteger(dp) && dp > 0
+        && customTpOptions.includes(tp) && Number.isInteger(dcp) && dcp > 0 && tp % dcp === 0
+      : preset && tp === preset.tp && (dcp === preset.dcp || (platform === 'a5' && dcp === 1));
+    if (!validParallel) {
       throw new RangeError('不支持此机型和 DCP 组合');
     }
     if (!preset.weights.includes(weight)) throw new RangeError('不支持此机型和权重组合');
@@ -57,7 +64,7 @@
     if (recover && spec === 0) throw new RangeError('RecoverSSM 需要开启 DSpark');
     if (!preset.blockOptions.includes(requestedBlock)) throw new RangeError('不支持此 block-size 档位');
 
-    const { heads, recurrent, conv, state } = kdaGeometry(preset.tp, spec);
+    const { heads, recurrent, conv, state } = kdaGeometry(tp, spec);
     const mla = mlaFormats[mlaDtype];
     const indexer = indexFormats[indexDtype];
     const draftTokenBytes = draftDtype === 'BF16' ? 1152 : 576;
@@ -93,7 +100,7 @@
         formula: `${historyIds} 历史 ID × ${spec ? 5 : 0} 层 × ${localBlock} 本地 token × ${draftTokenBytes} B`, tags: ['DCP', 'DSpark'] },
       { name: 'KDA 状态内容', bytes: stateLayers * stateCopies * state,
         shape: `[${heads},128,128] FP32 + [${3 + spec},3,${heads},128] BF16 = ${state} B / 层 / 份`,
-        formula: `69 层 × ${stateCopies} 份 × (${recurrent} B recurrent + ${conv} B conv)`, tags: [`TP${preset.tp}`, 'DSpark', 'RecoverSSM'] },
+        formula: `69 层 × ${stateCopies} 份 × (${recurrent} B recurrent + ${conv} B conv)`, tags: [`TP${tp}`, 'DSpark', 'RecoverSSM'] },
       { name: 'KDA 页内 padding', bytes: stateLayers * stateCopies * (mainPage - state),
         shape: `主 MLA 物理页 ${mainPage} B，KDA 原始状态 ${state} B`,
         formula: `69 层 × ${stateCopies} 份 × (${mainPage} − ${state}) B`, tags: ['DSpark', 'RecoverSSM'] },
@@ -187,7 +194,7 @@
   }
 
   const model = { Ki, inputs, defaultBlock, platforms, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup,
-    draftLayers, k3Preset, k3Platforms, calculate, calculateK3 };
+    draftLayers, k3Preset, k3Platforms, customTpOptions, supportsCustomParallel, calculate, calculateK3 };
   if (typeof module !== 'undefined') module.exports = model;
   else root.KVCache = model;
 })(globalThis);

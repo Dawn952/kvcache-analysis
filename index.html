@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kimi-K3.1 Pro KVCache 对比台</title>
-<link rel="stylesheet" href="style.css?v=29">
+<link rel="stylesheet" href="style.css?v=30">
 <main>
   <header>
     <h1 id="page-title">Kimi-K3.1 Pro KVCache 对比台</h1>
@@ -15,9 +15,18 @@
       <label>模型<select id="model"><option value="k31">Kimi-K3.1 Pro</option><option value="k3">Kimi-K3</option></select></label>
       <label>机型<select id="hardware"><option value="a5">Ascend 950DT</option><option value="a3">Atlas 800I A3</option></select></label>
       <label>权重<select id="weight"><option>W4A8_MXFP</option></select></label>
-      <label>典型场景<select id="scenario"><option value="8">DP4 / DCP8 / TP8</option><option value="1">DP4 / TP8</option></select></label>
+      <label>并行策略<select id="scenario"><option value="8">DP4 / DCP8 / TP8</option><option value="1">DP4 / TP8</option><option value="custom">自定义</option></select></label>
       <label for="block-size" title="--block-size">请求页大小（token）<select id="block-size"><option>640</option><option>1024</option><option>1408</option><option selected>1536</option></select></label>
     </div>
+    <fieldset id="custom-parallel" class="custom-parallel" hidden>
+      <legend>自定义并行策略</legend>
+      <div class="custom-parallel-fields">
+        <label>DP<input id="custom-dp" type="number" min="1" step="1" inputmode="numeric" placeholder="填写 DP"></label>
+        <label>TP<select id="custom-tp"></select></label>
+        <label>DCP<select id="custom-dcp" aria-describedby="custom-parallel-help"></select></label>
+      </div>
+      <p class="caption" id="custom-parallel-help">DCP 须整除 TP，选 1 表示关闭。DP 只影响副本数，单请求单卡按同一副本估算。</p>
+    </fieldset>
     <div class="option-groups">
       <fieldset><legend>KDA 状态缓存</legend><div class="option-fields">
         <label class="option-toggle"><input type="checkbox" id="recover" aria-describedby="recover-help" checked> RecoverSSM</label>
@@ -57,6 +66,7 @@
   <section aria-labelledby="results-title">
     <h2 id="results-title">单请求 · 单卡 KVCache 估算</h2>
     <p class="caption" id="results-scope">按稳态 Decode 和输入＋生成上限计算。<span id="results-evidence"></span></p>
+    <p class="caption" id="custom-scenario-note" role="status" hidden>自定义并行策略待配置。</p>
     <div class="scroll"><table class="results-table" id="results" role="table" aria-describedby="results-scope">
       <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">max-model-len</th><th scope="col" role="columnheader">估算显存</th></tr></thead>
       <tbody role="rowgroup"></tbody>
@@ -111,6 +121,6 @@
   <div class="dialog-head"><div><h2 id="detail-title">占用明细</h2><p id="detail-caption" class="caption"></p></div><form method="dialog"><button>关闭</button></form></div>
   <div id="detail-rows"></div>
 </dialog>
-<script src="model.js?v=20" defer></script>
-<script src="app.js?v=34" defer></script>
+<script src="model.js?v=21" defer></script>
+<script src="app.js?v=35" defer></script>
 </html>

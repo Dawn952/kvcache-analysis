@@ -83,6 +83,43 @@ p {
   min-width: 0;
 }
 
+.custom-parallel {
+  min-inline-size: 0;
+  margin: 0 0 .8rem;
+  padding: .6rem .75rem;
+  border: 1px solid var(--line);
+  border-radius: .55rem;
+}
+
+.custom-parallel legend {
+  font-weight: 650;
+  padding: 0 .25rem;
+}
+
+.custom-parallel-fields {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: .65rem;
+  max-width: 30rem;
+}
+
+.custom-parallel-fields label {
+  display: grid;
+  gap: .3rem;
+  min-width: 0;
+  color: var(--muted);
+  font-size: .9rem;
+}
+
+.custom-parallel-fields :is(select, input[type="number"]) {
+  min-width: 0;
+  width: 100%;
+}
+
+.custom-parallel .caption {
+  margin-bottom: 0;
+}
+
 button,select {
   font: inherit;
   color: var(--text);

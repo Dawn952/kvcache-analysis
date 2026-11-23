@@ -1,12 +1,15 @@
 'use strict';
 
 const { inputs, defaultBlock, platforms, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup, draftLayers,
-  k3Preset, k3Platforms, calculate: calculateK31, calculateK3 } = KVCache;
+  k3Preset, k3Platforms, customTpOptions, supportsCustomParallel, calculate: calculateK31, calculateK3 } = KVCache;
 const byId = (id) => document.getElementById(id);
 const modelChoice = byId('model');
 const hardware = byId('hardware');
 const weight = byId('weight');
 const scenario = byId('scenario');
+const customDp = byId('custom-dp');
+const customTp = byId('custom-tp');
+const customDcp = byId('custom-dcp');
 const recover = byId('recover');
 const draft = byId('draft');
 const spec = byId('spec');
@@ -33,7 +36,7 @@ const memory = (bytes) => bytes >= 2 ** 30
   ? `${(bytes / 2 ** 30).toFixed(3)} GiB`
   : `${(bytes / 2 ** 20).toFixed(2)} MiB`;
 const lengths = ['4k+1k', '16k+1k', '64k+1k', '128k+1k', '1M'];
-const topology = ({ platform, dcp }) => `DP4${dcp > 1 ? ` / DCP${dcp}` : ''} / TP${platforms[platform].tp}`;
+const topology = ({ platform, dcp, dp = 4, tp = platforms[platform].tp }) => `DP${dp}${dcp > 1 ? ` / DCP${dcp}` : ''} / TP${tp}`;
 const weightLabel = (value) => value === 'native' ? 'Moonshot 原生 MXFP4' : value;
 const blockInputPrefix = ({ requestedBlock, localBlock }) => requestedBlock === localBlock ? '' : `${requestedBlock} → `;
 const mlaLayer = (slot) => slot === layersPerStateGroup ? 92 : slot * (stateGroups + 1) + stateGroups;
@@ -48,6 +51,7 @@ function describe({ recover: enabled, spec: count }, { draftInfo }) {
 }
 
 function geometryEvidence(value, config) {
+  if (config.customParallel) return { label: '自定义并行策略 · 容量推算 · 部署待验证' };
   if (config.modelId === 'k3') {
     if (value.draftInfo?.kind === 'GQA') return { label: 'GQA 分组按配置推算' };
     if (config.platform === 'a3' && config.dcp === 16 && !config.recover && config.spec === 7 && value.draftInfo?.layers === 5) {
@@ -84,6 +88,16 @@ function hasAlternateDtype(config) {
   return config.mlaDtype !== baseline || config.indexDtype !== baseline || (config.spec > 0 && config.draftDtype !== 'BF16');
 }
 
+function updateCustomDcp() {
+  const tp = Number(customTp.value);
+  const previous = customDcp.value;
+  const choices = customTpOptions.filter(dcp => tp && tp % dcp === 0);
+  customDcp.replaceChildren(new Option(tp ? '选择 DCP' : '先选 TP', ''),
+    ...choices.map(dcp => new Option(dcp === 1 ? '1（关闭）' : dcp, dcp)));
+  customDcp.disabled = choices.length === 0;
+  if (choices.includes(Number(previous))) customDcp.value = previous;
+}
+
 function selectPlatform() {
   const platform = hardware.value;
   const k3 = modelChoice.value === 'k3';
@@ -93,7 +107,11 @@ function selectPlatform() {
   const dcpOptions = k3 ? k3Platform.dcpOptions : platform === 'a5' ? [preset.dcp, 1] : [preset.dcp];
   weight.replaceChildren(...preset.weights.map(value => new Option(weightLabel(value), value)));
   scenario.replaceChildren(...dcpOptions.map(dcp => new Option(
-    topology({ platform, dcp }) + (dcp === 1 && dcpOptions.length > 1 ? '（DCP 关闭）' : ''), dcp)));
+    topology({ platform, dcp }) + (dcp === 1 && dcpOptions.length > 1 ? '（DCP 关闭）' : ''), dcp)),
+    new Option('自定义', 'custom'));
+  customDp.value = '';
+  customTp.value = '';
+  updateCustomDcp();
   blockSize.replaceChildren(...preset.blockOptions.map(size => new Option(size, size)));
   blockSize.value = String(preset.defaultBlock);
   mlaDtype.replaceChildren(...preset.dsaDtypes.map(value => new Option(value, value)));
@@ -128,6 +146,14 @@ function render() {
   const kind = activeDraftKind();
   const mla = kind === 'mla';
   const draftEnabled = draft.checked;
+  const customScenario = scenario.value === 'custom';
+  const customAvailable = !k3 && supportsCustomParallel(hardware.value, weight.value);
+  const dp = customScenario ? customDp.valueAsNumber : 4;
+  const tp = customScenario ? Number(customTp.value) : platforms[hardware.value].tp;
+  const dcp = customScenario ? Number(customDcp.value) : Number(scenario.value);
+  const validDp = Number.isSafeInteger(dp) && dp > 0;
+  const pendingScenario = customScenario && !(customAvailable && validDp && tp && dcp);
+  byId('custom-parallel').hidden = !customScenario || !customAvailable;
   const maxSpec = k3 && mla ? k3Platforms[hardware.value].maxMlaSpec : 7;
   for (const option of spec.options) option.hidden = option.disabled = Number(option.value) > maxSpec;
   if (Number(spec.value) > maxSpec) spec.value = String(maxSpec);
@@ -142,12 +168,20 @@ function render() {
     : '使用独立的历史块表。Ascend 的 GQA 布局按容量推算。';
   recover.disabled = !draftEnabled;
   current = { modelId: modelChoice.value, draftKind: kind, mlaDraftLayerCount: Number(mlaDraftLayers.value), platform: hardware.value,
-    weight: weight.value, dcp: Number(scenario.value), recover: draftEnabled && recover.checked,
+    weight: weight.value, customParallel: customScenario, dp, tp, dcp, recover: draftEnabled && recover.checked,
     spec: draftEnabled ? Number(spec.value) : 0, requestedBlock: Number(blockSize.value),
     mlaDtype: mlaDtype.value, indexDtype: indexDtype.value, draftDtype: draftDtype.value };
   byId('native-weight-note').hidden = current.weight !== 'native';
   byId('dtype-note').hidden = k3 || !hasAlternateDtype(current);
+  byId('results-scope').hidden = pendingScenario;
+  const customNote = byId('custom-scenario-note');
+  customNote.hidden = !pendingScenario;
+  if (pendingScenario) customNote.textContent = !customAvailable ? '自定义并行策略待配置。'
+    : customDp.value && !validDp ? 'DP 须为正整数。' : '填写 DP、TP 和 DCP 后显示估算。';
+  byId('cache-layout').hidden = pendingScenario;
+  results.setAttribute('aria-describedby', pendingScenario ? 'custom-scenario-note' : 'results-scope');
   results.tBodies[0].innerHTML = lengths.map((length, index) => {
+    if (pendingScenario) return `<tr role="row"><th scope="row" role="rowheader">${length}</th><td role="cell"></td></tr>`;
     const input = inputs[index];
     const value = memory(calculate(input, current).bytes);
     const scopeLabel = lengthEvidence(index) ? '<small>容量对照</small>' : '';
@@ -156,7 +190,7 @@ function render() {
       <td role="cell"><button type="button" class="value" data-row="${index}" aria-haspopup="dialog" aria-label="${length}，${value}，查看明细">${value}</button></td>
     </tr>`;
   }).join('');
-  updateSelection();
+  if (!pendingScenario) updateSelection();
 }
 
 function updateSelection() {
@@ -539,6 +573,13 @@ results.addEventListener('click', (event) => {
 });
 
 mlaDraftLayers.replaceChildren(...k3Preset.mlaDraftLayerOptions.map(count => new Option(`${count} 层`, count)));
+customTp.replaceChildren(new Option('选择 TP', ''), ...customTpOptions.map(tp => new Option(tp, tp)));
+customDp.addEventListener('input', render);
+customTp.addEventListener('change', () => {
+  updateCustomDcp();
+  render();
+});
+customDcp.addEventListener('change', render);
 byId('gqa-draft-layer-count').textContent = `${k3Preset.gqaDraftLayers} 层（固定）`;
 for (const control of [weight, scenario, recover, draft, spec, blockSize, mlaDtype, indexDtype, draftDtype, mlaDraftLayers]) control.addEventListener('change', render);
 for (const input of draftKinds) input.addEventListener('change', () => {
