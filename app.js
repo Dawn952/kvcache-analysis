@@ -13,7 +13,7 @@ const spec = byId('spec');
 const mlaDtype = byId('mla-dtype');
 const indexDtype = byId('index-dtype');
 const draftDtype = byId('draft-dtype');
-const draftKind = byId('draft-kind');
+const draftKinds = Array.from(document.querySelectorAll('input[name="draft-kind"]'));
 const mlaDraftLayers = byId('mla-draft-layers');
 const blockSize = byId('block-size');
 const results = byId('results');
@@ -26,6 +26,7 @@ let selected = 3;
 let selectedMlaId = 0;
 let showMiddleSlots = true;
 let current;
+const draftSpecByKind = {};
 
 const fmt = new Intl.NumberFormat('zh-CN');
 const memory = (bytes) => bytes >= 2 ** 30
@@ -39,6 +40,7 @@ const mlaLayer = (slot) => slot === layersPerStateGroup ? 92 : slot * (stateGrou
 const kdaLayer = (slot, group) => slot * (stateGroups + 1) + group;
 const examplePoolId = (position) => [29, 81, 12, 54][position] ?? 100 + position;
 const calculate = (input, config) => config.modelId === 'k3' ? calculateK3(input, config) : calculateK31(input, config);
+const activeDraftKind = () => draftKinds.find(input => input.checked).value;
 
 function describe({ recover: enabled, spec: count }) {
   return `RecoverSSM ${enabled ? '开' : '关'} · DSpark ${count ? `${count} token` : '关'}`;
@@ -84,6 +86,8 @@ function selectPlatform() {
   recover.checked = preset.recover;
   draft.checked = true;
   spec.value = String(k3 ? k3Platform.spec : 3);
+  delete draftSpecByKind.mla;
+  delete draftSpecByKind.gqa;
   if (k3) mlaDraftLayers.value = String(k3Platform.mlaDraftLayers);
   render();
 }
@@ -97,27 +101,33 @@ function selectModel(preferredHardware = hardware.value) {
   byId('layout-title').textContent = `${modelName} 的 LBNHC 布局`;
   byId('attention-options-title').textContent = k3 ? 'MLA 历史缓存' : 'DSA 稀疏注意力';
   byId('index-dtype-field').hidden = k3;
-  byId('draft-kind-field').hidden = !k3;
   byId('k3-method').hidden = !k3;
   byId('k31-method').hidden = k3;
-  draftKind.value = 'mla';
+  draftKinds[0].checked = true;
   selectPlatform();
 }
 
 function render() {
   const k3 = modelChoice.value === 'k3';
-  const maxSpec = k3 && draftKind.value === 'mla' ? k3Platforms[hardware.value].maxMlaSpec : 7;
-  for (const option of spec.options) option.disabled = Number(option.value) > maxSpec;
+  const kind = activeDraftKind();
+  const mla = kind === 'mla';
+  const draftEnabled = draft.checked;
+  const maxSpec = k3 && mla ? k3Platforms[hardware.value].maxMlaSpec : 7;
+  for (const option of spec.options) option.hidden = option.disabled = Number(option.value) > maxSpec;
   if (Number(spec.value) > maxSpec) spec.value = String(maxSpec);
-  spec.disabled = !draft.checked;
-  draftDtype.disabled = !draft.checked;
-  draftKind.disabled = !draft.checked;
-  byId('mla-draft-layers-field').hidden = !k3 || draftKind.value !== 'mla';
-  mlaDraftLayers.disabled = !draft.checked;
-  recover.disabled = !draft.checked;
-  current = { modelId: modelChoice.value, draftKind: draftKind.value, mlaDraftLayerCount: Number(mlaDraftLayers.value), platform: hardware.value,
-    weight: weight.value, dcp: Number(scenario.value), recover: draft.checked && recover.checked,
-    spec: draft.checked ? Number(spec.value) : 0, requestedBlock: Number(blockSize.value),
+  byId('draft-fields').hidden = !draftEnabled;
+  byId('draft-kind-field').hidden = !k3;
+  byId('draft-format').hidden = !k3 || !draftEnabled;
+  byId('mla-draft-layers-field').hidden = !k3 || !mla;
+  byId('gqa-draft-layers-field').hidden = !k3 || mla;
+  byId('draft-dtype-field').hidden = k3;
+  byId('draft-layout-note').hidden = !k3;
+  byId('draft-layout-note').textContent = mla ? '沿用主模型的历史池块 ID，草稿层接在 MLA 层之后。'
+    : '使用独立的历史块表。Ascend 的 GQA 布局按容量推算。';
+  recover.disabled = !draftEnabled;
+  current = { modelId: modelChoice.value, draftKind: kind, mlaDraftLayerCount: Number(mlaDraftLayers.value), platform: hardware.value,
+    weight: weight.value, dcp: Number(scenario.value), recover: draftEnabled && recover.checked,
+    spec: draftEnabled ? Number(spec.value) : 0, requestedBlock: Number(blockSize.value),
     mlaDtype: mlaDtype.value, indexDtype: indexDtype.value, draftDtype: draftDtype.value };
   byId('native-weight-note').hidden = current.weight !== 'native';
   byId('dtype-note').hidden = k3 || !hasAlternateDtype(current);
@@ -494,7 +504,13 @@ results.addEventListener('click', (event) => {
 });
 
 mlaDraftLayers.replaceChildren(...k3Preset.mlaDraftLayerOptions.map(count => new Option(`${count} 层`, count)));
-for (const control of [weight, scenario, recover, draft, spec, blockSize, mlaDtype, indexDtype, draftDtype, draftKind, mlaDraftLayers]) control.addEventListener('change', render);
+byId('gqa-draft-layer-count').textContent = `${k3Preset.gqaDraftLayers} 层（固定）`;
+for (const control of [weight, scenario, recover, draft, spec, blockSize, mlaDtype, indexDtype, draftDtype, mlaDraftLayers]) control.addEventListener('change', render);
+for (const input of draftKinds) input.addEventListener('change', () => {
+  draftSpecByKind[current.draftKind] = spec.value;
+  spec.value = draftSpecByKind[input.value] ?? spec.value;
+  render();
+});
 hardware.addEventListener('change', selectPlatform);
 modelChoice.addEventListener('change', () => selectModel());
 byId('reset').addEventListener('click', () => {

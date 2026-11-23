@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kimi-K3.1 Pro KVCache 对比台</title>
-<link rel="stylesheet" href="style.css?v=27">
+<link rel="stylesheet" href="style.css?v=28">
 <main>
   <header>
     <h1 id="page-title">Kimi-K3.1 Pro KVCache 对比台</h1>
@@ -27,13 +27,28 @@
         <label>MLA dtype<select id="mla-dtype"></select></label>
         <label id="index-dtype-field">索引 K dtype<select id="index-dtype"></select></label>
       </div></fieldset>
-      <fieldset><legend>DSpark 草稿投机</legend><div class="option-fields">
-        <label class="option-toggle"><input type="checkbox" id="draft" checked> 启用 DSpark</label>
-        <label for="spec">每轮草稿 token 数<select id="spec" aria-label="每轮草稿 token 数（spec_num）"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></label>
-        <label id="draft-kind-field" hidden>Draft 类型<select id="draft-kind"><option value="mla">MLA</option><option value="gqa">GQA</option></select></label>
-        <label id="mla-draft-layers-field" hidden>MLA Draft 层数<select id="mla-draft-layers"></select></label>
-        <label>Draft dtype<select id="draft-dtype"></select></label>
-      </div></fieldset>
+      <fieldset class="draft-settings"><legend>DSpark 草稿投机</legend>
+        <div class="draft-heading">
+          <label class="option-toggle"><input type="checkbox" id="draft" aria-controls="draft-fields" checked> 启用 DSpark</label>
+          <span class="draft-format" id="draft-format" hidden>缓存 BF16</span>
+        </div>
+        <div id="draft-fields">
+          <fieldset class="draft-kind" id="draft-kind-field" hidden>
+            <legend>草稿模型类型</legend>
+            <div class="draft-kind-options">
+              <label><input type="radio" name="draft-kind" value="mla" checked><span>MLA</span></label>
+              <label><input type="radio" name="draft-kind" value="gqa"><span>GQA</span></label>
+            </div>
+          </fieldset>
+          <div class="draft-parameters">
+            <label for="spec"><span>每轮草稿 token 数 <code>spec_num</code></span><select id="spec"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></label>
+            <label id="mla-draft-layers-field" hidden>草稿模型层数<select id="mla-draft-layers"></select></label>
+            <div id="gqa-draft-layers-field" class="draft-static" hidden><span>草稿模型层数</span><span id="gqa-draft-layer-count" class="fixed-value"></span></div>
+            <label id="draft-dtype-field">草稿缓存 dtype<select id="draft-dtype"></select></label>
+          </div>
+          <p id="draft-layout-note" class="draft-note" hidden></p>
+        </div>
+      </fieldset>
     </div>
     <p class="caption" id="dtype-note" hidden>当前 dtype 搭配的显存按图中的 KVCache 布局计算，实际能否启动仍待验证。</p>
     <p class="caption" id="native-weight-note" hidden>Moonshot 原生档按所选 KV dtype 和 950DT 分组估算。<a href="https://huggingface.co/moonshotai/Kimi-K3.1-Pro">Moonshot 原生权重</a></p>
@@ -96,5 +111,5 @@
   <div id="detail-rows"></div>
 </dialog>
 <script src="model.js?v=19" defer></script>
-<script src="app.js?v=32" defer></script>
+<script src="app.js?v=33" defer></script>
 </html>

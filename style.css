@@ -130,7 +130,7 @@ select:disabled {
   gap: .8rem;
 }
 
-.option-groups fieldset {
+.option-groups > fieldset {
   display: grid;
   align-items: center;
   min-inline-size: 0;
@@ -140,7 +140,7 @@ select:disabled {
   border-radius: .55rem;
 }
 
-.option-groups legend {
+.option-groups > fieldset > legend {
   color: var(--text);
   margin-inline: auto;
   padding: 0 .25rem;
@@ -167,11 +167,124 @@ select:disabled {
   display: none;
 }
 
-.option-fields .option-toggle {
+.option-toggle {
   display: flex;
   align-items: center;
   min-height: 2rem;
   color: var(--text);
+}
+
+.option-groups > .draft-settings {
+  align-content: start;
+  gap: .55rem;
+}
+
+.draft-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .3rem .65rem;
+}
+
+.draft-format {
+  color: var(--muted);
+  font-size: .85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+#draft-fields {
+  min-width: 0;
+}
+
+.draft-kind {
+  min-width: 0;
+  margin: 0 0 .65rem;
+  padding: 0;
+  border: 0;
+}
+
+.draft-kind legend,
+.draft-parameters label,
+.draft-static {
+  color: var(--muted);
+  font-size: .85rem;
+}
+
+.draft-kind legend {
+  padding: 0;
+  margin-bottom: .3rem;
+}
+
+.draft-kind-options,
+.draft-parameters {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: .45rem;
+}
+
+.draft-kind-options label {
+  display: flex;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  gap: .38rem;
+  min-height: 2.3rem;
+  padding: .2rem .45rem;
+  border: 1px solid #40536d;
+  border-radius: .45rem;
+  background: #14253a;
+}
+
+.draft-kind-options input {
+  margin: 0;
+}
+
+.draft-kind-options label:has(input:checked) {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: #18354c;
+}
+
+.draft-kind-options label:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.draft-parameters label,
+.draft-static {
+  display: grid;
+  align-content: end;
+  gap: .3rem;
+  min-width: 0;
+}
+
+.draft-parameters code {
+  font-size: .75rem;
+}
+
+.draft-parameters select,
+.fixed-value {
+  min-height: 2.15rem;
+  width: 100%;
+}
+
+.fixed-value {
+  align-content: center;
+  padding: .38rem .65rem;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: .45rem;
+}
+
+.draft-parameters [hidden] {
+  display: none;
+}
+
+.draft-note {
+  color: var(--muted);
+  font-size: .85rem;
+  margin: .55rem 0 0;
 }
 
 .scroll {
