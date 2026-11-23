@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kimi-K3.1 Pro KVCache 对比台</title>
-<link rel="stylesheet" href="style.css?v=28">
+<link rel="stylesheet" href="style.css?v=29">
 <main>
   <header>
     <h1 id="page-title">Kimi-K3.1 Pro KVCache 对比台</h1>
@@ -58,7 +58,7 @@
     <h2 id="results-title">单请求 · 单卡 KVCache 估算</h2>
     <p class="caption" id="results-scope">按稳态 Decode 和输入＋生成上限计算。<span id="results-evidence"></span></p>
     <div class="scroll"><table class="results-table" id="results" role="table" aria-describedby="results-scope">
-      <thead role="rowgroup"><tr role="row"><th scope="col">max-model-len</th></tr></thead>
+      <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">max-model-len</th><th scope="col" role="columnheader">估算显存</th></tr></thead>
       <tbody role="rowgroup"></tbody>
     </table></div>
   </section>
@@ -67,7 +67,8 @@
     <h2 id="layout-title">Kimi-K3.1 Pro 的 LBNHC 布局</h2>
     <p class="caption layout-intro">共用区先按存储行（L）排，再按池块编号（B）排。</p>
     <p id="layout-caption" class="caption" aria-live="polite"></p>
-    <p id="block-adjustment" class="caption inline-explanation" hidden></p>
+    <p id="layout-scope" class="caption inline-explanation" hidden></p>
+    <div id="block-adjustment" class="caption inline-explanation" hidden></div>
     <div id="layout-summary"></div>
     <div id="layout-visual"></div>
     <details class="visual-block-detail" open>
@@ -110,6 +111,6 @@
   <div class="dialog-head"><div><h2 id="detail-title">占用明细</h2><p id="detail-caption" class="caption"></p></div><form method="dialog"><button>关闭</button></form></div>
   <div id="detail-rows"></div>
 </dialog>
-<script src="model.js?v=19" defer></script>
-<script src="app.js?v=33" defer></script>
+<script src="model.js?v=20" defer></script>
+<script src="app.js?v=34" defer></script>
 </html>

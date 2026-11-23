@@ -97,11 +97,11 @@
       { name: 'KDA 页内 padding', bytes: stateLayers * stateCopies * (mainPage - state),
         shape: `主 MLA 物理页 ${mainPage} B，KDA 原始状态 ${state} B`,
         formula: `69 层 × ${stateCopies} 份 × (${mainPage} − ${state}) B`, tags: ['DSpark', 'RecoverSSM'] },
-      { name: 'KDA ID 的空 main 槽', bytes: stateIds * mainPage,
-        shape: '69 层分成三组，每组 23 层。每个对应 ID 的 main 区有 24 槽',
+      { name: 'KDA 池块在共用区的空层槽', bytes: stateIds * mainPage,
+        shape: 'MLA / KDA 共用区为每个池块 ID 分配 24 层页。每个 KDA 组只使用其中 23 层，其余 1 层计入分配占用。',
         formula: `${stateIds} 状态 ID × (24 − 23) 槽 × ${mainPage} B` , tags: ['RecoverSSM'] },
-      { name: 'KDA ID 的空 Indexer / draft 区', bytes: stateIds * (indexRegion + draftRegion),
-        shape: '同一个池 ID 在独立的 Indexer 区与 draft 区也有物理槽位',
+      { name: spec ? 'KDA 池块的空 Indexer / Draft 页' : 'KDA 池块的空 Indexer 页', bytes: stateIds * (indexRegion + draftRegion),
+        shape: `KDA 的池块 ID 在独立的 Indexer${spec ? ' 与 Draft' : ''} 区也有预留页。它们没有写入内容，仍计入分配占用。`,
         formula: `${stateIds} 状态 ID × (${indexRegion} B Indexer + ${draftRegion} B draft)`, tags: ['DSpark', 'RecoverSSM'] },
     ];
     const bytes = (historyIds + stateIds) * bytesPerId;
@@ -158,7 +158,7 @@
       { name: 'KDA 页内 padding', bytes: stateLayers * stateCopies * padding,
         shape: 'KDA 页尾补齐到 MLA 的单层页宽',
         formula: `${stateLayers} 层 × ${stateCopies} 份 × (${mainPage} − ${state}) B`, tags: ['LBNHC'] },
-      { name: 'KDA ID 的空层槽', bytes: stateIds * (poolLayers - layersPerStateGroup) * mainPage,
+      { name: 'KDA 池块在共用区的空层槽', bytes: stateIds * (poolLayers - layersPerStateGroup) * mainPage,
         shape: `每个 KDA block ID 用 ${layersPerStateGroup} 个槽，池中给它留 ${poolLayers} 个槽`,
         formula: `${stateIds} ID × (${poolLayers} − ${layersPerStateGroup}) 槽 × ${mainPage} B`, tags: ['LBNHC'] },
     ];

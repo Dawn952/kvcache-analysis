@@ -42,26 +42,41 @@ const examplePoolId = (position) => [29, 81, 12, 54][position] ?? 100 + position
 const calculate = (input, config) => config.modelId === 'k3' ? calculateK3(input, config) : calculateK31(input, config);
 const activeDraftKind = () => draftKinds.find(input => input.checked).value;
 
-function describe({ recover: enabled, spec: count }) {
-  return `RecoverSSM ${enabled ? '开' : '关'} · DSpark ${count ? `${count} token` : '关'}`;
+function describe({ recover: enabled, spec: count }, { draftInfo }) {
+  const draftLabel = count ? `${draftInfo?.kind ?? 'MLA'} ${draftInfo?.layers ?? draftLayers} 层 / ${count} token` : '关';
+  return `RecoverSSM ${enabled ? '开' : '关'} · DSpark ${draftLabel}`;
 }
 
 function geometryEvidence(value, config) {
   if (config.modelId === 'k3') {
-    if (value.draftInfo?.kind === 'GQA') return 'GQA 分组推算';
+    if (value.draftInfo?.kind === 'GQA') return { label: 'GQA 分组按配置推算' };
     if (config.platform === 'a3' && config.dcp === 16 && !config.recover && config.spec === 7 && value.draftInfo?.layers === 5) {
-      return '页几何参考 A3 部署模板';
+      return { label: '单卡页宽 384 token · A3 1M Decode 模板',
+        url: 'https://docs.vllm.ai/projects/ascend/en/main/tutorials/models/Kimi-K3.html#53-long-context-and-1m-pd-separation-deployment' };
     }
-    return '当前布局按配置推算';
+    return { label: '当前布局按配置推算' };
   }
-  if (config.weight === 'native') return '原生权重加载待验证';
-  if (hasAlternateDtype(config)) return 'dtype 对照 · 部署未验证';
+  if (config.weight === 'native') return { label: '原生权重加载待验证' };
+  if (hasAlternateDtype(config)) return { label: 'dtype 对照 · 部署未验证' };
   const baseline = config.weight === platforms[config.platform].weights[0] && config.dcp === platforms[config.platform].dcp;
   if (baseline && config.spec === 3 && config.recover === platforms[config.platform].recover) {
-    if (config.platform === 'a3') return '页几何参考 A3 模板与源码';
-    if (value.requestedBlock === defaultBlock) return '页宽有历史启动日志';
+    if (config.platform === 'a3') return { label: '单卡页宽参考 A3 模板与源码',
+      url: 'https://docs.vllm.ai/projects/ascend/en/main/tutorials/models/Kimi-K3.1-Pro.html#long-context-and-1m-pd-separation-deployment' };
+    if (value.requestedBlock === defaultBlock) return { label: '历史启动日志的页宽：传入 768，生效 1536 token / 卡',
+      url: 'https://github.com/Dawn952/kimi-k31-a5-analysis/blob/main/data/memory-dcp-evidence.json' };
   }
-  return '当前布局按配置推算';
+  return { label: '当前布局按配置推算' };
+}
+
+function evidenceMarkup(value) {
+  const { label, url } = geometryEvidence(value, current);
+  return url ? `<a href="${url}">${label}</a>` : label;
+}
+
+function lengthEvidence(row) {
+  return current.modelId === 'k3' && current.platform === 'a3' && current.dcp === 1 && row === lengths.length - 1
+    ? '1M 仅作容量对照，关闭 DCP 的 A3 模板为 256K。'
+    : '';
 }
 
 function hasAlternateDtype(config) {
@@ -77,7 +92,8 @@ function selectPlatform() {
     dsaDtypes: ['BF16'], draftDtypes: ['BF16'], recover: false } : platforms[platform];
   const dcpOptions = k3 ? k3Platform.dcpOptions : platform === 'a5' ? [preset.dcp, 1] : [preset.dcp];
   weight.replaceChildren(...preset.weights.map(value => new Option(weightLabel(value), value)));
-  scenario.replaceChildren(...dcpOptions.map(dcp => new Option(topology({ platform, dcp }), dcp)));
+  scenario.replaceChildren(...dcpOptions.map(dcp => new Option(
+    topology({ platform, dcp }) + (dcp === 1 && dcpOptions.length > 1 ? '（DCP 关闭）' : ''), dcp)));
   blockSize.replaceChildren(...preset.blockOptions.map(size => new Option(size, size)));
   blockSize.value = String(preset.defaultBlock);
   mlaDtype.replaceChildren(...preset.dsaDtypes.map(value => new Option(value, value)));
@@ -131,14 +147,15 @@ function render() {
     mlaDtype: mlaDtype.value, indexDtype: indexDtype.value, draftDtype: draftDtype.value };
   byId('native-weight-note').hidden = current.weight !== 'native';
   byId('dtype-note').hidden = k3 || !hasAlternateDtype(current);
-  const headings = lengths.map((length, index) =>
-    `<th scope="col" role="columnheader"><button type="button" class="length" data-row="${index}" aria-controls="cache-layout">${length}</button></th>`).join('');
-  const values = inputs.map((input, index) => {
+  results.tBodies[0].innerHTML = lengths.map((length, index) => {
+    const input = inputs[index];
     const value = memory(calculate(input, current).bytes);
-    return `<td role="cell"><button type="button" class="value" data-row="${index}" aria-haspopup="dialog" aria-label="${lengths[index]}，${value}，查看明细">${value}</button></td>`;
+    const scopeLabel = lengthEvidence(index) ? '<small>容量对照</small>' : '';
+    return `<tr role="row">
+      <th scope="row" role="rowheader"><button type="button" class="length" data-row="${index}" aria-controls="cache-layout">${length}${scopeLabel}</button></th>
+      <td role="cell"><button type="button" class="value" data-row="${index}" aria-haspopup="dialog" aria-label="${length}，${value}，查看明细">${value}</button></td>
+    </tr>`;
   }).join('');
-  results.tHead.rows[0].innerHTML = `<th scope="col" role="columnheader">max-model-len</th>${headings}`;
-  results.tBodies[0].innerHTML = `<tr role="row"><th scope="row" role="rowheader">估算显存</th>${values}</tr>`;
   updateSelection();
 }
 
@@ -163,7 +180,10 @@ function renderBlockSize({ requestedBlock, localBlock, upstreamQuantumBytes, ali
   const doubled = alignmentMultiple > 2
     ? `翻倍到 ${requestedBlock * 2} token 只有 ${fmt.format(upstreamQuantumBytes * 2)} B，仍然不够。`
     : '';
-  blockAdjustment.textContent = `上游按 ${current.mlaDtype} MLA 的 ${bytesPerToken} B/token 选块。${requestedBlock} token 只提供 ${fmt.format(upstreamQuantumBytes)} B，KDA 单层状态需要 ${fmt.format(pages.state)} B。${doubled}最小够用的是 ${requestedBlock} × ${alignmentMultiple} = ${localBlock} token，选块容量为 ${fmt.format(upstreamQuantumBytes * alignmentMultiple)} B。`;
+  blockAdjustment.innerHTML = `
+    <p><strong>启动时选块。</strong> ${current.mlaDtype} MLA 按 ${bytesPerToken} B/token 计算。${requestedBlock} token 只提供 ${fmt.format(upstreamQuantumBytes)} B，KDA 单层状态需要 ${fmt.format(pages.state)} B。${doubled}取最小够用的整数倍 ${requestedBlock} × ${alignmentMultiple} = ${localBlock} token，对应 ${fmt.format(upstreamQuantumBytes * alignmentMultiple)} B。</p>
+    <p><strong>分配物理页。</strong> ${current.mlaDtype === 'BF16' ? '按同样的字节宽度' : '计入 BF16 RoPE 和 scale 后'}，MLA 页宽为 ${localBlock} × ${pages.main / localBlock} B = ${fmt.format(pages.main)} B。KDA 按此页宽对齐。</p>
+    <p class="sources"><a href="https://github.com/vllm-project/vllm/blob/4ba787ec9959e566d3b587a796dff07673324da5/vllm/platforms/interface.py#L1076-L1128">vLLM 选块源码</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/platform.py#L470-L489">Ascend 物理页宽源码</a></p>`;
   return `${requestedBlock} → <button type="button" class="explanation-toggle" aria-controls="block-adjustment" aria-expanded="${!blockAdjustment.hidden}">${effective}</button>`;
 }
 
@@ -203,8 +223,11 @@ function renderLayout() {
       ? (slot < value.draftInfo.layers ? `<td class="draft">GQA Draft 第 ${slot} 层</td>` : '<td class="empty">空槽</td>') : ''}</tr>`;
   });
   const sideRow = (name, layers, kind, text) => `<tr><th scope="row">${name} 区 × ${layers} 层</th><td class="${kind}">${text}</td>${groups.map(() => '<td class="empty">预留空页</td>').join('')}</tr>`;
-  byId('results-evidence').textContent = geometryEvidence(value, current) + '。';
-  layoutCaption.innerHTML = `${lengths[selected]} · ${topology(current)} · ${describe(current)} · 生效页大小 ${renderBlockSize(value)}`;
+  byId('results-evidence').innerHTML = evidenceMarkup(value) + '。';
+  layoutCaption.innerHTML = `${lengths[selected]} · ${topology(current)} · ${describe(current, value)} · 生效页大小 ${renderBlockSize(value)}`;
+  const scope = byId('layout-scope');
+  scope.textContent = lengthEvidence(selected);
+  scope.hidden = !scope.textContent;
   byId('layout-summary').innerHTML = `
     ${allocationFormula(value, true)}
     ${value.stateCopies > 1 ? `<p id="kda-state-explanation" class="caption inline-explanation" hidden>RecoverSSM 关闭时，KDA 为每个投机 token 位置保留一份候选状态，验证后按实际接受的长度选取下一轮解码所需的状态。当前 <code>spec_num = ${current.spec}</code>，所以每组是 <strong>1 块运行状态 + ${current.spec} 块投机状态 = ${stateCount}</strong>。三组共 ${value.stateIds} 块。</p>` : ''}`;
@@ -296,14 +319,19 @@ function renderLayoutVisual(value, focusBlock = false) {
       <form id="block-search" class="block-search">
         <label>请求块号 <input id="logical-block-input" type="number" min="0" max="${historyIds - 1}" step="1" value="${selectedMlaId}" required aria-describedby="block-input-help"></label>
         <button type="submit">定位</button>
+        ${historyIds > 1 ? '<button type="button" data-last-block>尾块</button>' : ''}
         <small id="block-input-help">0–${fmt.format(historyIds - 1)}</small>
       </form>
       <strong aria-live="polite">请求块 ${selectedMlaId} → 池块 ID ${selectedPoolId}（示例）</strong>
     </div>
-    <p class="caption">块表（<code>block_table</code>）记录请求块号到池块 ID 的映射。各 MLA 层用同一个 ID 在自己的存储行读写。当前逻辑块已用 ${fmt.format(activeTokens)} token${current.dcp > 1 ? '（各卡合计）' : ''}。</p>
+    <p class="caption">块表（<code>block_table</code>）记录请求块号到池块 ID 的映射。各 MLA 层用同一个 ID 在自己的存储行读写。</p>
+    ${selectedMlaId === historyIds - 1 ? `<div class="tail-usage">
+      <div class="tail-token-track" role="img" aria-label="请求尾块已填 ${fmt.format(activeTokens)} token，未填 ${fmt.format(unusedTokens)} token" style="grid-template-columns:${activeTokens}fr ${unusedTokens}fr"><span></span><span></span></div>
+      <p class="caption"><strong>尾块已填 ${fmt.format(activeTokens)} token</strong>${unusedTokens ? ` · 未填 ${fmt.format(unusedTokens)} token` : ''}${current.dcp > 1 ? '（各卡合计）' : ''}。显存按分配的整页计算。</p>
+    </div>` : ''}
     ${k3 ? (draftInfo ? `<p class="caption"><strong>Draft 放在哪。</strong> ${gqaPool
-        ? `GQA 有独立块表。其 ID 在同一物理池使用第 0–${draftInfo.layers - 1} 行，其余 ${value.poolLayers - draftInfo.layers} 行是空层槽。`
-        : `MLA Draft 共用历史池块 ID，存储接在主模型后面的第 ${draftInfo.startRow}–${draftInfo.startRow + draftInfo.layers - 1} 行。KDA 的 ID 在这些行是空槽。`}</p>` : '')
+        ? `GQA 有独立块表，另占 ${draftInfo.ids} 个历史池块 ID，在同池使用前 ${draftInfo.layers} 行，其余 ${value.poolLayers - draftInfo.layers} 行是空层槽。`
+        : `MLA Draft 共用历史池块 ID，草稿页接在第 ${draftInfo.startRow}–${draftInfo.startRow + draftInfo.layers - 1} 行。每个池块都为这 ${draftInfo.layers} 行留空间，KDA 的 ID 在这些行是空槽。`}</p>` : '')
       : `<p class="caption">Indexer 独立存放用于筛选历史 token 的索引 K，沿用目标 MLA 的历史池块 ID。${pages.draft ? '草稿 MLA 也用同一 ID 在自己的存储区寻址。' : ''}</p>`}
     <div class="visual-block-nav" role="group" aria-label="跳到缓存组">${pools.map((pool, group) => `<button type="button" data-block-group="${group}">${pool.label} <span>· ${pool.count} 个 block</span></button>`).join('')}</div>
     <p class="caption">同一存储行内，不同组的池块可存不同模型层。每格是一层在一个池块 ID 下的单卡页。</p>
@@ -460,6 +488,10 @@ layoutVisual.addEventListener('submit', (event) => {
 
 layoutVisual.addEventListener('click', (event) => {
   if (showByteOffset(event.target)) return;
+  if (event.target.closest('[data-last-block]')) {
+    selectMlaId(Number(byId('logical-block-input').max));
+    return;
+  }
   const id = event.target.closest('[data-mla-id]');
   if (id) {
     selectMlaId(Number(id.dataset.mlaId));
@@ -488,10 +520,13 @@ function openDetail(row) {
   const config = current;
   const value = calculate(inputs[row], config);
   byId('detail-title').textContent = `${memory(value.bytes)} / 卡`;
-  const draftLabel = value.pages.draft ? ` · ${value.draftInfo?.kind ?? 'MLA'} Draft ${value.draftInfo?.layers ?? draftLayers} 层 ${config.draftDtype}` : '';
+  const draftLabel = value.pages.draft ? ` · 草稿 KV ${config.draftDtype}` : '';
   const indexLabel = value.pages.index ? ` · Indexer ${config.indexDtype}` : '';
-  byId('detail-caption').textContent = `${modelChoice.selectedOptions[0].textContent} · ${hardware.selectedOptions[0].textContent} · ${lengths[row]} · ${topology(config)} · ${weightLabel(config.weight)} · ${describe(config)} · block ${blockInputPrefix(value)}${value.localBlock} token / 卡 · MLA ${config.mlaDtype}${indexLabel}${draftLabel} · ${geometryEvidence(value, config)}`;
-  byId('detail-rows').innerHTML = `${allocationFormula(value)}<p class="caption">MLA 历史块数 = ⌈${fmt.format(value.limit)} token ÷ ${fmt.format(value.coverage)} token / 块⌉ = ${value.historyIds}。本估算使用该档的输入和生成上限。</p>${value.rows.map((entry) => `<details class="breakdown"><summary><span>${entry.name}</span><strong>${memory(entry.bytes)}</strong></summary><p>${entry.shape}</p><p><code>${entry.formula} = ${fmt.format(entry.bytes)} B</code></p><p class="tags">${entry.tags.map((tag) => `<span>${tag}</span>`).join('')}</p></details>`).join('')}`;
+  byId('detail-caption').textContent = `${modelChoice.selectedOptions[0].textContent} · ${hardware.selectedOptions[0].textContent} · ${lengths[row]} · ${topology(config)} · ${weightLabel(config.weight)} · ${describe(config, value)} · block ${blockInputPrefix(value)}${value.localBlock} token / 卡 · MLA ${config.mlaDtype}${indexLabel}${draftLabel}`;
+  byId('detail-rows').innerHTML = `<p class="caption">单卡占用按模型估算。 ${evidenceMarkup(value)}。 ${lengthEvidence(row)}</p>
+    ${allocationFormula(value)}
+    <p class="caption">MLA 历史块数 = ⌈${fmt.format(value.limit)} token ÷ ${fmt.format(value.coverage)} token / 块⌉ = ${value.historyIds}。另外有 ${value.stateIds} 个池块 ID 存 KDA 状态${value.draftInfo?.ids ? `，${value.draftInfo.ids} 个存 GQA 草稿历史` : ''}。每个 ID 都预留一组层页，分项中列出的空层槽和空页也计入占用。</p>
+    ${value.rows.map((entry) => `<details class="breakdown"><summary><span>${entry.name}</span><strong>${memory(entry.bytes)}</strong></summary><p>${entry.shape}</p><p><code>${entry.formula} = ${fmt.format(entry.bytes)} B</code></p><p class="tags">${entry.tags.map((tag) => `<span>${tag}</span>`).join('')}</p></details>`).join('')}`;
   detail.showModal();
 }
 
