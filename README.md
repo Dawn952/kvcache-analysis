@@ -6,6 +6,8 @@ Kimi-K3.1 Pro 在 Ascend 950DT 上可选 `DP4 / DCP8 / TP8` 或 `DP4 / TP8`。�
 
 机型选择器包含 Atlas 800I A3 的 W4A8 场景。A3 采用公开 1M Decode 模板的 `DP4 / DCP16 / TP16`、`block-size 768` 和 DSpark3，主 MLA 与 Indexer 使用 INT8，draft MLA 使用 BF16。RecoverSSM 默认关闭，打开后的单卡占用按源码推算。
 
+模型选择器包含 Kimi-K3 的 `LBNHC` 场景，固定 950DT、DP4 / TP8、BF16 和 768 token / 卡。MLA Draft 采用 Inferact Block5 的 3 层配置，按完整历史共享组推算。GQA Draft 采用 RadixArk 的 5 层配置，按上游独立缓存组推算。图中标出 KDA 和 GQA 的页内 padding、各组未使用的层槽与 MLA Draft 的存储行。两档的显存估算均为源码与配置推算，GQA 的 Ascend 布局待实测。
+
 950DT 的 `--block-size` 可在 640、1024、1408 和 1536 之间切换，默认传入 1536。页面按固定版上游选块规则推算生效值，再按 Ascend 打包后的页宽计算显存。1536 token 的 DCP8 页几何有 A5 Atlas 历史日志。A3 的 paired 页几何按公开模板及源码复核。
 
 每档以输入与生成预算之和设置 `max_model_len`。投机 lookahead 受 `KVCacheManager.allocate_slots` 的模型上限截断。KDA 估算单请求稳态 Decode 的驻留，每组计 1 个运行状态块，RecoverSSM 关闭时再加 `spec_num` 个投机状态块。跨块切换时的临时重叠、额外 Prefill checkpoint、历史驻留、全池 null ID、图内存、权重和引擎级 RecoverSSM records 另计。

@@ -170,6 +170,14 @@ select:disabled {
   text-align: center;
 }
 
+.option-fields label[hidden] {
+  display: none;
+}
+
+.k3-placement {
+  margin-top: .6rem;
+}
+
 .option-fields .option-toggle {
   display: flex;
   align-items: center;

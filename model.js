@@ -29,6 +29,14 @@
   const layersPerStateGroup = stateLayers / stateGroups;
   const draftLayers = 5;
   const dim = 128;
+  const k3Preset = { blockSize: 768, tp: 8, mlaDraftLayers: 3, gqaDraftLayers: 5, gqaKvHeads: 16, gqaHeadDim: 64 };
+
+  function kdaGeometry(tp, spec) {
+    const heads = 96 / tp;
+    const recurrent = heads * dim * dim * 4;
+    const conv = (3 + spec) * 3 * heads * dim * 2;
+    return { heads, recurrent, conv, state: recurrent + conv };
+  }
 
   function calculate(input, { platform = 'a5', weight = platforms[platform]?.weights[0], dcp, recover, spec,
     requestedBlock = platforms[platform]?.defaultBlock, mlaDtype = platforms[platform]?.cacheDtype,
@@ -45,10 +53,7 @@
     if (recover && spec === 0) throw new RangeError('RecoverSSM 需要开启 DSpark');
     if (!preset.blockOptions.includes(requestedBlock)) throw new RangeError('不支持此 block-size 档位');
 
-    const heads = 96 / preset.tp;
-    const recurrent = heads * dim * dim * 4;
-    const conv = (3 + spec) * 3 * heads * dim * 2;
-    const state = recurrent + conv;
+    const { heads, recurrent, conv, state } = kdaGeometry(preset.tp, spec);
     const mla = mlaFormats[mlaDtype];
     const indexer = indexFormats[indexDtype];
     const draftTokenBytes = draftDtype === 'BF16' ? 1152 : 576;
@@ -103,7 +108,76 @@
       requestedBlock, localBlock, upstreamQuantumBytes, alignmentMultiple };
   }
 
-  const model = { Ki, inputs, defaultBlock, platforms, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup, draftLayers, calculate };
+  function calculateK3(input, { recover, spec, draftKind = 'mla' }) {
+    if (draftKind !== 'mla' && draftKind !== 'gqa') throw new RangeError('不支持此 Draft 类型');
+    const gqa = draftKind === 'gqa';
+    if (!Number.isInteger(spec) || spec < 0 || spec > (gqa ? 7 : 5) || (recover && !spec)) {
+      throw new RangeError('不支持此 Kimi-K3 投机配置');
+    }
+
+    const { blockSize: localBlock, tp } = k3Preset;
+    const limit = input + Ki;
+    const historyIds = Math.ceil(limit / localBlock);
+    const { heads, conv, recurrent, state } = kdaGeometry(tp, spec);
+    const stateCopies = 1 + (recover ? 0 : spec);
+    const stateIds = stateCopies * stateGroups;
+    const tokenBytes = mlaFormats.BF16.tokenBytes;
+    const mainPage = localBlock * tokenBytes;
+    const padding = mainPage - state;
+    const draftLayerCount = spec ? (gqa ? k3Preset.gqaDraftLayers : k3Preset.mlaDraftLayers) : 0;
+    const gqaHeads = k3Preset.gqaKvHeads / tp;
+    const draftTokenBytes = gqa ? 2 * gqaHeads * k3Preset.gqaHeadDim * 2 : tokenBytes;
+    const draftPayload = localBlock * draftTokenBytes;
+    const draftPadding = mainPage - draftPayload;
+    const sharedDraftLayers = gqa ? 0 : draftLayerCount;
+    const poolLayers = mainLayers + sharedDraftLayers;
+    const draftIds = gqa && draftLayerCount ? historyIds : 0;
+    const bytesPerId = poolLayers * mainPage;
+    const draftInfo = draftLayerCount ? {
+      kind: gqa ? 'GQA' : 'MLA', layers: draftLayerCount, ids: draftIds, payload: draftPayload,
+      padding: draftPadding, startRow: gqa ? 0 : mainLayers,
+    } : null;
+
+    const rows = [
+      { name: 'MLA 历史 KV', bytes: historyIds * mainLayers * mainPage,
+        shape: '每 token 存 512 维 latent 与 64 维位置分量（BF16）',
+        formula: `${historyIds} ID × ${mainLayers} 层 × ${localBlock} token × ${tokenBytes} B`, tags: ['LBNHC'] },
+      { name: 'KDA 状态内容', bytes: stateLayers * stateCopies * state,
+        shape: `[${heads},128,128] FP32 + [${3 + spec},3,${heads},128] BF16`,
+        formula: `${stateLayers} 层 × ${stateCopies} 份 × (${recurrent} + ${conv}) B`, tags: ['TP8', 'RecoverSSM'] },
+      { name: 'KDA 页内 padding', bytes: stateLayers * stateCopies * padding,
+        shape: 'KDA 页尾补齐到 MLA 的单层页宽',
+        formula: `${stateLayers} 层 × ${stateCopies} 份 × (${mainPage} − ${state}) B`, tags: ['LBNHC'] },
+      { name: 'KDA ID 的空层槽', bytes: stateIds * (poolLayers - layersPerStateGroup) * mainPage,
+        shape: `每个 KDA block ID 用 ${layersPerStateGroup} 个槽，池中给它留 ${poolLayers} 个槽`,
+        formula: `${stateIds} ID × (${poolLayers} − ${layersPerStateGroup}) 槽 × ${mainPage} B`, tags: ['LBNHC'] },
+    ];
+    if (draftInfo) {
+      const ids = draftIds || historyIds;
+      rows.push({ name: `DSpark ${draftInfo.kind} Draft 有效数据`, bytes: ids * draftLayerCount * draftPayload,
+        shape: gqa ? `K / V 各存 ${gqaHeads} × ${k3Preset.gqaHeadDim} BF16 / token` : '每 token 存 512 维 latent 与 64 维位置分量（BF16）',
+        formula: `${ids} ID × ${draftLayerCount} 层 × ${localBlock} token × ${draftTokenBytes} B`, tags: ['DSpark'] });
+    }
+    if (draftIds) {
+      rows.push(
+        { name: 'GQA Draft 页内 padding', bytes: draftIds * draftLayerCount * draftPadding,
+          shape: 'K / V 有效数据之后补齐到公共页步长',
+          formula: `${draftIds} ID × ${draftLayerCount} 层 × (${mainPage} − ${draftPayload}) B`, tags: ['推算'] },
+        { name: 'GQA Draft ID 的空层槽', bytes: draftIds * (poolLayers - draftLayerCount) * mainPage,
+          shape: `GQA Draft 组用前 ${draftLayerCount} 个槽，其余槽预留`,
+          formula: `${draftIds} ID × (${poolLayers} − ${draftLayerCount}) 槽 × ${mainPage} B`, tags: ['推算'] },
+      );
+    }
+    const bytes = (historyIds + stateIds + draftIds) * bytesPerId;
+    if (rows.reduce((sum, row) => sum + row.bytes, 0) !== bytes) throw new Error('Kimi-K3 分项与整页计费不一致');
+    const pages = { main: mainPage, index: 0, draft: draftInfo ? mainPage : 0, state, conv, recurrent, padding };
+    return { input, limit, coverage: localBlock, historyIds, stateCopies, stateIds, poolLayers, draftInfo, bytesPerId,
+      pages, regions: { main: mainLayers * mainPage, index: 0, draft: sharedDraftLayers * mainPage }, rows, bytes,
+      requestedBlock: localBlock, localBlock, upstreamQuantumBytes: mainPage, alignmentMultiple: 1 };
+  }
+
+  const model = { Ki, inputs, defaultBlock, platforms, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup,
+    draftLayers, k3Preset, calculate, calculateK3 };
   if (typeof module !== 'undefined') module.exports = model;
   else root.KVCache = model;
 })(globalThis);
