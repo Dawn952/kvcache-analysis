@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kimi-K3.1 Pro KVCache 对比台</title>
-<link rel="stylesheet" href="style.css?v=30">
+<link rel="stylesheet" href="style.css?v=31">
 <main>
   <header>
     <h1 id="page-title">Kimi-K3.1 Pro KVCache 对比台</h1>
@@ -26,6 +26,13 @@
         <label>DCP<select id="custom-dcp" aria-describedby="custom-parallel-help"></select></label>
       </div>
       <p class="caption" id="custom-parallel-help">DCP 须整除 TP，选 1 表示关闭。DP 只影响副本数，单请求单卡按同一副本估算。</p>
+      <p id="custom-parallel-size" class="caption" hidden></p>
+      <div class="custom-actions">
+        <button type="button" id="copy-preset-topology">从预设填入</button>
+        <button type="button" id="copy-parallel-link" disabled>复制配置链接</button>
+        <span id="parallel-link-status" role="status"></span>
+      </div>
+      <label id="parallel-link-fallback" hidden>配置链接<input type="url" id="parallel-link-url" readonly></label>
     </fieldset>
     <div class="option-groups">
       <fieldset><legend>KDA 状态缓存</legend><div class="option-fields">
@@ -91,9 +98,9 @@
     </details>
     <details id="k3-method" hidden>
       <summary>Kimi-K3 的对齐原理与计算口径</summary>
-      <p>950DT 页宽为 <code>768 × (512 + 64) × 2 = 884,736 B</code>。A3 页宽为 <code>384 × (512 + 64) × 2 = 442,368 B</code>。A3 的 1M Decode 模板使用 DP4 / DCP16 / TP16，每个逻辑 block 覆盖 6,144 token。关闭 DCP 后，每块覆盖 384 token。KDA 按 TP 分头，A3 每卡 6 头。3 个 KDA 组各占 23 个存储行，按相同 MLA 页宽补齐，组间 block ID 互斥。</p>
+      <p>按预设 TP，950DT 页宽为 <code>768 × (512 + 64) × 2 = 884,736 B</code>，A3 为 <code>384 × (512 + 64) × 2 = 442,368 B</code>。A3 的 1M Decode 模板使用 DP4 / DCP16 / TP16，每个逻辑 block 覆盖 6,144 token。关闭 DCP 后，每块覆盖 384 token。KDA 每卡分到 <code>96 ÷ TP</code> 个头。降低 TP 后，如果状态放不进原页，就按请求页大小的最小够用倍数对齐。3 个 KDA 组各占 23 个存储行，组间 block ID 互斥。</p>
       <p>950DT 默认使用 Inferact Block5 的 3 层 MLA Draft。A3 默认使用 Eco-Tech 的 5 层 MLA Draft、DSpark 7 token。另一层数档用相同规则做容量对照。MLA Draft 行接在 24 个目标 MLA 行之后，共用历史 block ID。GQA Draft 以 RadixArk 的 5 层配置推算，使用独立 block ID，占整池前 5 行。</p>
-      <p>按单请求稳态 Decode、各档用满 token 预算、无前缀复用估算。A3 的 DCP 关闭拓扑对应 256K 模板，1M 列在该拓扑下仅用于容量推算。GQA 的分组与页步长待 Ascend 实测。权重、图内存及 RecoverSSM records 另计。</p>
+      <p>按单请求稳态 Decode、各档用满 token 预算、无前缀复用估算。A3 的 DCP 关闭拓扑对应 256K 模板，1M 列在该拓扑下仅用于容量推算。GQA Draft 有 16 个 KV 头，当前自定义节点内 TP 下要求 DCP=1。TP1/2 时 GQA 单页比 MLA 页宽，超出现有共用页模型的估算范围。权重、图内存及 RecoverSSM records 另计。<a href="https://github.com/Dawn952/vllm-ascend/blob/6fcafe90e9fe4091685935d162a7a3869aa204ee/vllm_ascend/platform.py#L1971-L2040">Ascend 草稿并行校验</a></p>
       <p class="sources"><a href="https://docs.vllm.ai/projects/ascend/en/main/tutorials/models/Kimi-K3.html#53-long-context-and-1m-pd-separation-deployment">Kimi-K3 1M Decode 模板</a><a href="https://modelscope.cn/models/Eco-Tech/Kimi-K3-DSpark-MLA-NPU">A3 MLA Draft 权重</a><a href="https://huggingface.co/Inferact/Kimi-K3-DSpark-Block5/blob/a202601f9043e965516e3965d02322a1b8f10310/config.json">950DT MLA Draft 配置</a><a href="https://huggingface.co/RadixArk/Kimi-K3-DSpark/blob/9c4b2577dacb572ce88e8aad4357dffb4f6c9796/config.json">GQA Draft 配置</a><a href="https://github.com/vllm-project/vllm/blob/main/vllm/models/kimi_k3/nvidia/gqa_draft.py#L30-L69">上游 GQA 分组</a></p>
     </details>
     <details id="k31-method">
@@ -121,6 +128,6 @@
   <div class="dialog-head"><div><h2 id="detail-title">占用明细</h2><p id="detail-caption" class="caption"></p></div><form method="dialog"><button>关闭</button></form></div>
   <div id="detail-rows"></div>
 </dialog>
-<script src="model.js?v=21" defer></script>
-<script src="app.js?v=35" defer></script>
+<script src="model.js?v=22" defer></script>
+<script src="app.js?v=36" defer></script>
 </html>

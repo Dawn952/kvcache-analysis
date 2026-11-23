@@ -1,7 +1,8 @@
 'use strict';
 
 const { inputs, defaultBlock, platforms, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup, draftLayers,
-  k3Preset, k3Platforms, customTpOptions, supportsCustomParallel, calculate: calculateK31, calculateK3 } = KVCache;
+  k3Preset, k3Platforms, customTpOptions, customDcpOptions, validCustomParallel, gqaFitsK3Page,
+  calculate: calculateK31, calculateK3 } = KVCache;
 const byId = (id) => document.getElementById(id);
 const modelChoice = byId('model');
 const hardware = byId('hardware');
@@ -29,6 +30,7 @@ let selected = 3;
 let selectedMlaId = 0;
 let showMiddleSlots = true;
 let current;
+let presetDcp;
 const draftSpecByKind = {};
 
 const fmt = new Intl.NumberFormat('zh-CN');
@@ -51,9 +53,14 @@ function describe({ recover: enabled, spec: count }, { draftInfo }) {
 }
 
 function geometryEvidence(value, config) {
-  if (config.customParallel) return { label: '自定义并行策略 · 容量推算 · 部署待验证' };
+  if (config.customParallel) {
+    if (config.weight === 'native') return { label: '自定义并行策略 · 容量推算 · 原生权重加载待验证' };
+    return { label: '自定义并行策略 · 容量推算 · 部署待验证' };
+  }
   if (config.modelId === 'k3') {
-    if (value.draftInfo?.kind === 'GQA') return { label: 'GQA 分组按配置推算' };
+    if (value.draftInfo?.kind === 'GQA') {
+      return { label: config.dcp > 1 ? 'GQA / DCP 结构对照 · 当前草稿组合无法部署' : 'GQA 分组按配置推算' };
+    }
     if (config.platform === 'a3' && config.dcp === 16 && !config.recover && config.spec === 7 && value.draftInfo?.layers === 5) {
       return { label: '单卡页宽 384 token · A3 1M Decode 模板',
         url: 'https://docs.vllm.ai/projects/ascend/en/main/tutorials/models/Kimi-K3.html#53-long-context-and-1m-pd-separation-deployment' };
@@ -91,11 +98,40 @@ function hasAlternateDtype(config) {
 function updateCustomDcp() {
   const tp = Number(customTp.value);
   const previous = customDcp.value;
-  const choices = customTpOptions.filter(dcp => tp && tp % dcp === 0);
+  const choices = customDcpOptions(hardware.value, tp);
   customDcp.replaceChildren(new Option(tp ? '选择 DCP' : '先选 TP', ''),
     ...choices.map(dcp => new Option(dcp === 1 ? '1（关闭）' : dcp, dcp)));
   customDcp.disabled = choices.length === 0;
   if (choices.includes(Number(previous))) customDcp.value = previous;
+}
+
+function applySharedParallel(query) {
+  const setOption = (control, key) => {
+    const value = query.get(key);
+    if (Array.from(control.options).some(option => option.value === value)) control.value = value;
+  };
+  setOption(weight, 'weight');
+  setOption(blockSize, 'block');
+  setOption(mlaDtype, 'mla');
+  setOption(indexDtype, 'index');
+  setOption(draftDtype, 'draftdtype');
+  setOption(spec, 'spec');
+  if (modelChoice.value === 'k3') {
+    const kind = draftKinds.find(input => input.value === query.get('kind'));
+    if (kind) kind.checked = true;
+    setOption(mlaDraftLayers, 'layers');
+  }
+  if (query.has('draft')) draft.checked = query.get('draft') === '1';
+  if (query.has('recover')) recover.checked = query.get('recover') === '1';
+  const input = query.get('input');
+  if (input && inputs.includes(Number(input))) selected = inputs.indexOf(Number(input));
+  scenario.value = 'custom';
+  const dp = query.get('dp');
+  if (dp && /^[1-9]\d*$/.test(dp) && Number.isSafeInteger(Number(dp))) customDp.value = dp;
+  setOption(customTp, 'tp');
+  updateCustomDcp();
+  setOption(customDcp, 'dcp');
+  render();
 }
 
 function selectPlatform() {
@@ -109,8 +145,9 @@ function selectPlatform() {
   scenario.replaceChildren(...dcpOptions.map(dcp => new Option(
     topology({ platform, dcp }) + (dcp === 1 && dcpOptions.length > 1 ? '（DCP 关闭）' : ''), dcp)),
     new Option('自定义', 'custom'));
+  presetDcp = dcpOptions[0];
   customDp.value = '';
-  customTp.value = '';
+  customTp.replaceChildren(new Option('选择 TP', ''), ...customTpOptions(platform).map(tp => new Option(tp, tp)));
   updateCustomDcp();
   blockSize.replaceChildren(...preset.blockOptions.map(size => new Option(size, size)));
   blockSize.value = String(preset.defaultBlock);
@@ -147,13 +184,22 @@ function render() {
   const mla = kind === 'mla';
   const draftEnabled = draft.checked;
   const customScenario = scenario.value === 'custom';
-  const customAvailable = !k3 && supportsCustomParallel(hardware.value, weight.value);
+  const platform = hardware.value;
   const dp = customScenario ? customDp.valueAsNumber : 4;
-  const tp = customScenario ? Number(customTp.value) : platforms[hardware.value].tp;
+  const tp = customScenario ? Number(customTp.value) : platforms[platform].tp;
   const dcp = customScenario ? Number(customDcp.value) : Number(scenario.value);
-  const validDp = Number.isSafeInteger(dp) && dp > 0;
-  const pendingScenario = customScenario && !(customAvailable && validDp && tp && dcp);
-  byId('custom-parallel').hidden = !customScenario || !customAvailable;
+  const gqaDraft = k3 && !mla && draftEnabled;
+  const validTopology = validCustomParallel(platform, dp, tp, dcp);
+  const gqaIssue = gqaDraft && (tp > 0 && !gqaFitsK3Page(tp) || dcp > 1);
+  const pendingScenario = customScenario && (!validTopology || gqaIssue);
+  byId('custom-parallel').hidden = !customScenario;
+  if (!customScenario) presetDcp = dcp;
+  const size = byId('custom-parallel-size');
+  size.hidden = !customScenario || !validTopology;
+  if (customScenario && validTopology) size.textContent = `DP × TP = ${fmt.format(BigInt(dp) * BigInt(tp))} 个并行 rank，DCP 复用 TP rank。`;
+  byId('copy-parallel-link').disabled = pendingScenario;
+  byId('parallel-link-status').textContent = '';
+  byId('parallel-link-fallback').hidden = true;
   const maxSpec = k3 && mla ? k3Platforms[hardware.value].maxMlaSpec : 7;
   for (const option of spec.options) option.hidden = option.disabled = Number(option.value) > maxSpec;
   if (Number(spec.value) > maxSpec) spec.value = String(maxSpec);
@@ -167,7 +213,7 @@ function render() {
   byId('draft-layout-note').textContent = mla ? '沿用主模型的历史池块 ID，草稿层接在 MLA 层之后。'
     : '使用独立的历史块表。Ascend 的 GQA 布局按容量推算。';
   recover.disabled = !draftEnabled;
-  current = { modelId: modelChoice.value, draftKind: kind, mlaDraftLayerCount: Number(mlaDraftLayers.value), platform: hardware.value,
+  current = { modelId: modelChoice.value, draftKind: kind, mlaDraftLayerCount: Number(mlaDraftLayers.value), platform,
     weight: weight.value, customParallel: customScenario, dp, tp, dcp, recover: draftEnabled && recover.checked,
     spec: draftEnabled ? Number(spec.value) : 0, requestedBlock: Number(blockSize.value),
     mlaDtype: mlaDtype.value, indexDtype: indexDtype.value, draftDtype: draftDtype.value };
@@ -176,8 +222,10 @@ function render() {
   byId('results-scope').hidden = pendingScenario;
   const customNote = byId('custom-scenario-note');
   customNote.hidden = !pendingScenario;
-  if (pendingScenario) customNote.textContent = !customAvailable ? '自定义并行策略待配置。'
-    : customDp.value && !validDp ? 'DP 须为正整数。' : '填写 DP、TP 和 DCP 后显示估算。';
+  if (pendingScenario) {
+    customNote.textContent = gqaIssue ? 'GQA Draft 的共用页估算要求 TP 至少为 4、DCP 为 1。'
+      : customDp.value && (!Number.isSafeInteger(dp) || dp < 1) ? 'DP 须为正整数。' : '填写 DP、TP 和 DCP 后显示估算。';
+  }
   byId('cache-layout').hidden = pendingScenario;
   results.setAttribute('aria-describedby', pendingScenario ? 'custom-scenario-note' : 'results-scope');
   results.tBodies[0].innerHTML = lengths.map((length, index) => {
@@ -573,13 +621,39 @@ results.addEventListener('click', (event) => {
 });
 
 mlaDraftLayers.replaceChildren(...k3Preset.mlaDraftLayerOptions.map(count => new Option(`${count} 层`, count)));
-customTp.replaceChildren(new Option('选择 TP', ''), ...customTpOptions.map(tp => new Option(tp, tp)));
 customDp.addEventListener('input', render);
 customTp.addEventListener('change', () => {
   updateCustomDcp();
   render();
 });
 customDcp.addEventListener('change', render);
+byId('copy-preset-topology').addEventListener('click', () => {
+  customDp.value = '4';
+  customTp.value = String(platforms[hardware.value].tp);
+  updateCustomDcp();
+  customDcp.value = String(presetDcp);
+  render();
+});
+byId('copy-parallel-link').addEventListener('click', async () => {
+  const url = new URL(location.href);
+  url.hash = '';
+  url.search = new URLSearchParams({
+    model: current.modelId, platform: current.platform, weight: current.weight, scenario: 'custom',
+    dp: current.dp, tp: current.tp, dcp: current.dcp, input: inputs[selected],
+    block: current.requestedBlock, mla: current.mlaDtype, index: current.indexDtype, draftdtype: current.draftDtype,
+    draft: Number(draft.checked), recover: Number(recover.checked), spec: spec.value,
+    kind: current.draftKind, layers: current.mlaDraftLayerCount,
+  }).toString();
+  const link = byId('parallel-link-url');
+  try {
+    await navigator.clipboard.writeText(url.href);
+    byId('parallel-link-status').textContent = '已复制';
+  } catch {
+    link.value = url.href;
+    byId('parallel-link-fallback').hidden = false;
+    link.select();
+  }
+});
 byId('gqa-draft-layer-count').textContent = `${k3Preset.gqaDraftLayers} 层（固定）`;
 for (const control of [weight, scenario, recover, draft, spec, blockSize, mlaDtype, indexDtype, draftDtype, mlaDraftLayers]) control.addEventListener('change', render);
 for (const input of draftKinds) input.addEventListener('change', () => {
@@ -592,10 +666,12 @@ modelChoice.addEventListener('change', () => selectModel());
 byId('reset').addEventListener('click', () => {
   selected = 3;
   selectedMlaId = 0;
-  layoutVisual.querySelector('.visual-block-scroll').scrollLeft = 0;
+  const scroller = layoutVisual.querySelector('.visual-block-scroll');
+  if (scroller) scroller.scrollLeft = 0;
   selectModel();
 });
 
 const query = new URLSearchParams(location.search);
 if (query.get('model') === 'k3') modelChoice.value = 'k3';
 selectModel(query.get('platform'));
+if (query.get('scenario') === 'custom') applySharedParallel(query);

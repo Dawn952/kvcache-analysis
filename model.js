@@ -34,8 +34,11 @@
     a5: { blockSize: 768, dcpOptions: [1], spec: 3, mlaDraftLayers: 3, maxMlaSpec: 5 },
     a3: { blockSize: 384, dcpOptions: [16, 1], spec: 7, mlaDraftLayers: 5, maxMlaSpec: 7 },
   };
-  const customTpOptions = [1, 2, 4, 8];
-  const supportsCustomParallel = (platform, weight) => platform === 'a5' && weight === 'W4A8_MXFP';
+  const customTpOptions = (platform) => [1, 2, 4, 8, 16].filter(tp => tp <= (platforms[platform]?.tp ?? 0));
+  const customDcpOptions = (platform, tp) => customTpOptions(platform).filter(dcp => tp > 0 && tp % dcp === 0);
+  const validCustomParallel = (platform, dp, tp, dcp) => Number.isSafeInteger(dp) && dp > 0
+    && customTpOptions(platform).includes(tp) && customDcpOptions(platform, tp).includes(dcp);
+  const gqaFitsK3Page = (tp) => 2 * k3Preset.gqaKvHeads / tp * k3Preset.gqaHeadDim * 2 <= mlaFormats.BF16.tokenBytes;
 
   function kdaGeometry(tp, spec) {
     const heads = 96 / tp;
@@ -44,14 +47,20 @@
     return { heads, recurrent, conv, state: recurrent + conv };
   }
 
+  function alignBlock(requestedBlock, selectBytes, stateBytes) {
+    // Each requested block is a multiple of the 128-token backend alignment.
+    const upstreamQuantumBytes = requestedBlock * selectBytes;
+    const alignmentMultiple = Math.ceil(stateBytes / upstreamQuantumBytes);
+    return { localBlock: requestedBlock * alignmentMultiple, upstreamQuantumBytes, alignmentMultiple };
+  }
+
   function calculate(input, { platform = 'a5', weight = platforms[platform]?.weights[0], dcp, recover, spec,
     customParallel = false, dp = 4, tp = platforms[platform]?.tp,
     requestedBlock = platforms[platform]?.defaultBlock, mlaDtype = platforms[platform]?.cacheDtype,
     indexDtype = platforms[platform]?.cacheDtype, draftDtype = 'BF16' }) {
     const preset = platforms[platform];
     const validParallel = customParallel
-      ? supportsCustomParallel(platform, weight) && Number.isSafeInteger(dp) && dp > 0
-        && customTpOptions.includes(tp) && Number.isInteger(dcp) && dcp > 0 && tp % dcp === 0
+      ? validCustomParallel(platform, dp, tp, dcp)
       : preset && tp === preset.tp && (dcp === preset.dcp || (platform === 'a5' && dcp === 1));
     if (!validParallel) {
       throw new RangeError('不支持此机型和 DCP 组合');
@@ -68,11 +77,9 @@
     const mla = mlaFormats[mlaDtype];
     const indexer = indexFormats[indexDtype];
     const draftTokenBytes = draftDtype === 'BF16' ? 1152 : 576;
-    // These presets are multiples of the 128-token backend block and the KDA checkpoint alignment.
     // Upstream sizes the manager block first. Ascend then uses the packed MLA width for its page stride.
-    const upstreamQuantumBytes = requestedBlock * mla.selectBytes;
-    const alignmentMultiple = Math.ceil(state / upstreamQuantumBytes);
-    const localBlock = requestedBlock * alignmentMultiple;
+    const block = alignBlock(requestedBlock, mla.selectBytes, state);
+    const { localBlock } = block;
     const limit = input + Ki;
     const coverage = localBlock * dcp;
     // Each row sets the engine max_model_len to input + output. allocate_slots
@@ -116,29 +123,35 @@
     const pages = { main: mainPage, index: indexPage, draft: draftPage, conv, recurrent, state, padding: mainPage - state };
     const regions = { main: mainRegion, index: indexRegion, draft: draftRegion };
     return { input, limit, coverage, historyIds, stateCopies, stateIds, bytesPerId, pages, regions, rows, bytes,
-      requestedBlock, localBlock, upstreamQuantumBytes, alignmentMultiple };
+      requestedBlock, ...block };
   }
 
-  function calculateK3(input, { platform = 'a5', recover, spec, draftKind = 'mla',
+  function calculateK3(input, { platform = 'a5', recover, spec, draftKind = 'mla', customParallel = false,
+    dp = 4, tp = platforms[platform]?.tp,
     dcp = k3Platforms[platform]?.dcpOptions[0], mlaDraftLayerCount = k3Platforms[platform]?.mlaDraftLayers }) {
     const preset = k3Platforms[platform];
-    if (!preset?.dcpOptions.includes(dcp)) throw new RangeError('不支持此 Kimi-K3 机型和 DCP 组合');
+    const validParallel = customParallel ? validCustomParallel(platform, dp, tp, dcp)
+      : preset && tp === platforms[platform].tp && preset.dcpOptions.includes(dcp);
+    if (!validParallel) throw new RangeError('不支持此 Kimi-K3 机型和并行组合');
     if (draftKind !== 'mla' && draftKind !== 'gqa') throw new RangeError('不支持此 Draft 类型');
     const gqa = draftKind === 'gqa';
     if (!gqa && !k3Preset.mlaDraftLayerOptions.includes(mlaDraftLayerCount)) throw new RangeError('MLA Draft 层数可选 3 或 5');
     if (!Number.isInteger(spec) || spec < 0 || spec > (gqa ? 7 : preset.maxMlaSpec) || (recover && !spec)) {
       throw new RangeError('不支持此 Kimi-K3 投机配置');
     }
+    if (gqa && spec && !gqaFitsK3Page(tp)) throw new RangeError('GQA Draft 页超过 MLA 共用页宽');
+    if (gqa && spec && customParallel && dcp !== 1) throw new RangeError('Kimi-K3 GQA Draft 的自定义并行要求 DCP=1');
 
-    const { blockSize: localBlock } = preset;
-    const { tp } = platforms[platform];
+    const requestedBlock = preset.blockSize;
+    const { heads, conv, recurrent, state } = kdaGeometry(tp, spec);
+    const tokenBytes = mlaFormats.BF16.tokenBytes;
+    const block = alignBlock(requestedBlock, tokenBytes, state);
+    const { localBlock } = block;
     const limit = input + Ki;
     const coverage = localBlock * dcp;
     const historyIds = Math.ceil(limit / coverage);
-    const { heads, conv, recurrent, state } = kdaGeometry(tp, spec);
     const stateCopies = 1 + (recover ? 0 : spec);
     const stateIds = stateCopies * stateGroups;
-    const tokenBytes = mlaFormats.BF16.tokenBytes;
     const mainPage = localBlock * tokenBytes;
     const padding = mainPage - state;
     const draftLayerCount = spec ? (gqa ? k3Preset.gqaDraftLayers : mlaDraftLayerCount) : 0;
@@ -190,11 +203,11 @@
     const pages = { main: mainPage, index: 0, draft: draftInfo ? mainPage : 0, state, conv, recurrent, padding };
     return { input, limit, coverage, historyIds, stateCopies, stateIds, poolLayers, draftInfo, bytesPerId,
       pages, regions: { main: mainLayers * mainPage, index: 0, draft: sharedDraftLayers * mainPage }, rows, bytes,
-      requestedBlock: localBlock, localBlock, upstreamQuantumBytes: mainPage, alignmentMultiple: 1 };
+      requestedBlock, ...block };
   }
 
   const model = { Ki, inputs, defaultBlock, platforms, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup,
-    draftLayers, k3Preset, k3Platforms, customTpOptions, supportsCustomParallel, calculate, calculateK3 };
+    draftLayers, k3Preset, k3Platforms, customTpOptions, customDcpOptions, validCustomParallel, gqaFitsK3Page, calculate, calculateK3 };
   if (typeof module !== 'undefined') module.exports = model;
   else root.KVCache = model;
 })(globalThis);
