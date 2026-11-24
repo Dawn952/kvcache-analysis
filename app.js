@@ -15,6 +15,7 @@ const customDcp = byId('custom-dcp');
 const customNodes = byId('custom-nodes');
 const customLength = byId('custom-length');
 const customGeneration = byId('custom-generation');
+const capacityLength = byId('capacity-length');
 const cacheBudget = byId('cache-budget');
 const prefixPercent = byId('prefix-percent');
 const prefixCount = byId('prefix-count');
@@ -158,7 +159,10 @@ function applySharedParallel(query) {
   if (query.has('length')) {
     customLength.value = query.get('length');
     customGeneration.value = query.get('generation') ?? '0';
-    if (requestAt(customRow) && query.get('custom-length-selected') !== '0') selected = customRow;
+    if (requestAt(customRow) && query.get('custom-length-selected') !== '0') {
+      selected = customRow;
+      byId('custom-request').open = true;
+    }
   }
   if (query.has('budget')) cacheBudget.value = query.get('budget');
   if (query.has('prefix')) prefixPercent.value = query.get('prefix');
@@ -274,6 +278,8 @@ function render() {
   lengthNote.hidden = !customLength.value || Boolean(custom);
   lengthNote.textContent = '请求总长度须为 1–1,048,576 的整数，输出长度须在 0 与总长度之间。';
   const rows = custom ? [...lengths, custom.label] : lengths;
+  capacityLength.replaceChildren(...rows.map((label, index) => new Option(label, index)));
+  capacityLength.disabled = pendingScenario;
   results.style.setProperty('--result-count', rows.length);
   results.tBodies[0].innerHTML = rows.map((length, index) => {
     if (pendingScenario) return `<tr role="row"><th scope="row" role="rowheader">${length}</th><td role="cell"></td></tr>`;
@@ -285,7 +291,21 @@ function render() {
     </tr>`;
   }).join('');
   if (!pendingScenario) updateSelection();
-  else renderCapacity();
+  else {
+    updateRequestTools();
+    renderCapacity();
+  }
+}
+
+function updateRequestTools(value) {
+  capacityLength.value = String(selected);
+  const scope = [modelChoice.selectedOptions[0].textContent, hardware.selectedOptions[0].textContent];
+  if (value) scope.push(topology(current));
+  for (const context of document.querySelectorAll('.tool-context')) context.textContent = scope.join(' · ');
+  for (const button of document.querySelectorAll('.tool-layout-link')) button.disabled = !value;
+  byId('analysis-request').textContent = value
+    ? `当前分析 · ${requestAt(selected).label} · ${memory(value.bytes)} / 卡`
+    : byId('custom-scenario-note').textContent;
 }
 
 function updateSelection() {
@@ -294,14 +314,16 @@ function updateSelection() {
     button.parentElement.classList.toggle('selected-length', active);
     if (button.classList.contains('length')) button.setAttribute('aria-pressed', active);
   }
-  renderLayout();
+  const value = calculateRequest(selected);
+  updateRequestTools(value);
+  renderLayout(value);
   renderCapacity();
 }
 
 function renderCapacity() {
   const result = byId('capacity-result');
   if (byId('cache-layout').hidden) {
-    result.textContent = '并行策略待配置。';
+    result.textContent = byId('custom-scenario-note').textContent;
     return;
   }
   const { label } = requestAt(selected);
@@ -366,8 +388,7 @@ function allocationFormula({ historyIds, stateCopies, draftInfo, poolLayers, pag
   </div>`;
 }
 
-function renderLayout() {
-  const value = calculateRequest(selected);
+function renderLayout(value) {
   const gqa = Boolean(value.draftInfo?.ids);
   const mlaDraft = value.draftInfo?.kind === 'MLA';
   const separateDraftIds = value.draftInfo?.ids ?? 0;
@@ -702,6 +723,23 @@ results.addEventListener('click', (event) => {
   if (button.classList.contains('value')) openDetail(selected);
 });
 
+capacityLength.addEventListener('change', () => {
+  selected = Number(capacityLength.value);
+  updateSelection();
+});
+for (const button of document.querySelectorAll('[data-tool]')) button.addEventListener('click', () => {
+  const dialog = byId(button.dataset.tool);
+  // Both tools edit the same request fields and use the same selection state.
+  dialog.querySelector('.request-controls').append(byId('custom-request'));
+  dialog.showModal();
+});
+for (const button of document.querySelectorAll('.tool-layout-link')) button.addEventListener('click', () => {
+  button.closest('dialog').close();
+  const heading = byId('layout-title');
+  heading.focus({ preventScroll: true });
+  heading.scrollIntoView({ block: 'start' });
+});
+
 mlaDraftLayers.replaceChildren(...k3Preset.mlaDraftLayerOptions.map(count => new Option(`${count} 层`, count)));
 customNodes.append(...instanceNodes.map(nodes => new Option(`${nodes} 机`, nodes)));
 customNodes.addEventListener('change', render);
@@ -766,6 +804,7 @@ byId('reset').addEventListener('click', () => {
   selectedMlaId = 0;
   customLength.value = '';
   customGeneration.value = '0';
+  byId('custom-request').open = false;
   cacheBudget.value = '';
   prefixPercent.value = '100';
   prefixCount.value = '1';

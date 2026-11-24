@@ -671,6 +671,49 @@ dialog::backdrop {
   gap: .75rem;
 }
 
+.tool-launcher, .tool-buttons {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .65rem 1rem;
+}
+
+.tool-launcher {
+  justify-content: space-between;
+}
+
+.tool-launcher h2 {
+  margin: 0;
+}
+
+#analysis-request {
+  color: var(--muted);
+  margin: .3rem 0 0;
+  font-size: .9rem;
+}
+
+.tool-dialog {
+  width: min(880px,100% - 2rem);
+}
+
+.tool-dialog .request-controls {
+  margin-top: .75rem;
+}
+
+.tool-dialog .tool-layout-link {
+  margin-top: .7rem;
+  color: var(--accent);
+}
+
+.tool-dialog .tool-layout-link:disabled {
+  opacity: .5;
+  cursor: default;
+}
+
+#capacity-length {
+  width: 100%;
+}
+
 .visual-block-nav {
   display: flex;
   flex-wrap: wrap;
