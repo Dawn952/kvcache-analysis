@@ -240,14 +240,15 @@ select:disabled {
 }
 
 .option-groups > .draft-settings {
-  align-content: start;
+  align-content: center;
   gap: .55rem;
+  text-align: center;
 }
 
 .draft-heading {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   flex-wrap: wrap;
   gap: .3rem .65rem;
 }
@@ -278,7 +279,7 @@ select:disabled {
 
 .draft-kind legend {
   padding: 0;
-  margin-bottom: .3rem;
+  margin: 0 auto .3rem;
 }
 
 .draft-kind-options,
@@ -332,6 +333,11 @@ select:disabled {
 .fixed-value {
   min-height: 2.15rem;
   width: 100%;
+}
+
+.draft-parameters select {
+  text-align: center;
+  text-align-last: center;
 }
 
 .fixed-value {
