@@ -77,7 +77,7 @@
     <p class="caption" id="custom-scenario-note" role="status" hidden>自定义并行策略待配置。</p>
     <div class="request-fields">
       <label>自定义请求总长度（token）<input id="custom-length" type="number" min="1" max="1048576" step="1" inputmode="numeric" placeholder="填写 token"></label>
-      <label>其中生成预算（token）<input id="custom-generation" type="number" min="0" max="1048576" step="1" inputmode="numeric" value="0"></label>
+      <label>输出长度（token）<input id="custom-generation" type="number" min="0" max="1048576" step="1" inputmode="numeric" value="0"></label>
     </div>
     <p class="caption" id="custom-request-note" role="status" hidden></p>
     <div class="scroll"><table class="results-table" id="results" role="table" aria-describedby="results-scope">
@@ -95,7 +95,7 @@
     </div>
     <div id="capacity-result" aria-live="polite"></div>
     <details><summary>前缀复用与估算口径</summary>
-      <p>比例以当前长度档的输入 token 为基数，生成预算单独计。只有完整逻辑块可共享，并保留最后一个输入 token 的计算位置。各 DP 副本使用各自的 KVCache。</p>
+      <p>比例以当前长度档的输入 token 为基数，输出长度单独计。只有完整逻辑块可共享，并保留最后一个输入 token 的计算位置。各 DP 副本使用各自的 KVCache。</p>
       <p>每个有请求的前缀计一份共享历史块。每条请求分别计未共享历史、KDA 状态和独立 GQA Draft 块。按稳态驻留估算，调度上限、其他请求的缓存、临时重叠和碎片另计。<a href="https://docs.vllm.ai/en/v0.24.0/api/vllm/v1/core/kv_cache_manager/">vLLM 前缀命中规则</a></p>
     </details>
   </section>
@@ -129,7 +129,7 @@
       <p><strong>页与 ID。</strong> KDA 沿用 MLA 页的步长。三组 KDA 各自有 block table，使用互斥的池 ID，同一组的 23 层使用相同的一串 ID。Indexer 和 draft 有独立的物理区域及页宽，也按池 ID 寻址。</p>
       <p><strong>先选 token 块，再算物理页。</strong> 量化 MLA 按 576 B/token 选块，按 656 B/token 打包。BF16 MLA 的两个步骤都按 1152 B/token 计算。Indexer 的 INT8、FP8、BF16 分别用 130、132、256 B/token。DCP 逻辑覆盖等于生效 block size × DCP。KDA 的 96 个头按 TP 切分，TP8 每卡 12 个，TP16 每卡 6 个。</p>
       <p><code>spec_num</code> 对应 vLLM 的 <code>num_speculative_tokens</code>。Draft BF16 使用 1152 B/token。Draft C8 是按 576 B/token 的容量估算，静态 scale 另计，算子可用性和部署未验证。<a href="https://dawn952.github.io/kimi-k31-a5-analysis/">A5 Atlas 的 DSpark C8 容量口径</a></p>
-      <p>按独享请求、无前缀复用计算。每档以输入与生成预算之和设置 <code>max-model-len</code>，<code>1M</code> 档使用 <code>(1M−1k)+1k</code>。<code>allocate_slots</code> 先将主模型 token 和 lookahead 的和截断到模型上限，再由 Full Attention manager 按 DCP 逻辑块取整。因此用满本档预算时，lookahead 不会跨过模型上限占用新块。</p>
+      <p>按独享请求、无前缀复用计算。每档以输入与输出长度之和设置 <code>max-model-len</code>，<code>1M</code> 档使用 <code>(1M−1k)+1k</code>。<code>allocate_slots</code> 先将主模型 token 和 lookahead 的和截断到模型上限，再由 Full Attention manager 按 DCP 逻辑块取整。因此用满本档预算时，lookahead 不会跨过模型上限占用新块。</p>
       <p><code>MambaManager</code> 在 align 模式按主模型进度管理 KDA 状态。单请求的稳态 Decode 每组保留 1 个运行状态块，RecoverSSM 关闭时再加投机状态块。跨块切换时旧块暂留，后续由 <code>remove_skipped_blocks</code> 释放。跨块重叠、额外 Prefill checkpoint、历史驻留、全池 null ID、权重、图内存和 RecoverSSM records 另计。</p>
       <h3>默认场景的证据</h3>
       <div class="scroll"><table class="pool-map"><thead><tr><th scope="col">Decode 配置</th><th scope="col">生效页 / 模板 interleave</th><th scope="col">每池 ID / 卡</th><th scope="col">证据范围</th></tr></thead><tbody>
@@ -149,5 +149,5 @@
   <div id="detail-rows"></div>
 </dialog>
 <script src="model.js?v=23" defer></script>
-<script src="app.js?v=37" defer></script>
+<script src="app.js?v=38" defer></script>
 </html>

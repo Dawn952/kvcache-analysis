@@ -272,7 +272,7 @@ function render() {
   if (selected === customRow && !custom) selected = 3;
   const lengthNote = byId('custom-request-note');
   lengthNote.hidden = !customLength.value || Boolean(custom);
-  lengthNote.textContent = '请求总长度须为 1–1,048,576 的整数，生成预算须在 0 与总长度之间。';
+  lengthNote.textContent = '请求总长度须为 1–1,048,576 的整数，输出长度须在 0 与总长度之间。';
   const rows = custom ? [...lengths, custom.label] : lengths;
   results.style.setProperty('--result-count', rows.length);
   results.tBodies[0].innerHTML = rows.map((length, index) => {
