@@ -1014,7 +1014,7 @@ dialog::backdrop {
   padding-inline-start: .7rem;
 }
 
-.tail-token-track {
+.block-token-track {
   display: grid;
   height: .65rem;
   border-radius: .25rem;
@@ -1022,11 +1022,11 @@ dialog::backdrop {
   background: #0a1423;
 }
 
-.tail-token-track span:first-child {
+.block-token-track span:first-child {
   background: #4facca;
 }
 
-.tail-token-track span:last-child {
+.block-token-track span:last-child {
   background: repeating-linear-gradient(135deg,#162235 0 5px,#314258 5px 7px);
 }
 

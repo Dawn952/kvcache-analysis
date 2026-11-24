@@ -469,6 +469,8 @@ function renderLayoutVisual(value, focusBlock = false) {
   };
 
   const activeTokens = Math.min(coverage, limit - selectedMlaId * coverage);
+  const activeUnused = coverage - activeTokens;
+  const activeBlockLabel = selectedMlaId === historyIds - 1 ? '尾块' : `请求块 ${selectedMlaId}`;
   const unusedTokens = historyIds * coverage - limit;
   layoutVisual.innerHTML = `
     <h3>从请求到单卡物理页</h3>
@@ -487,10 +489,10 @@ function renderLayoutVisual(value, focusBlock = false) {
       <strong aria-live="polite">请求块 ${selectedMlaId} → 池块 ID ${selectedPoolId}（示例）</strong>
     </div>
     <p class="caption">块表（<code>block_table</code>）记录请求块号到池块 ID 的映射。各 MLA 层用同一个 ID 在自己的存储行读写。</p>
-    ${selectedMlaId === historyIds - 1 ? `<div class="tail-usage">
-      <div class="tail-token-track" role="img" aria-label="请求尾块已填 ${fmt.format(activeTokens)} token，未填 ${fmt.format(unusedTokens)} token" style="grid-template-columns:${activeTokens}fr ${unusedTokens}fr"><span></span><span></span></div>
-      <p class="caption"><strong>尾块已填 ${fmt.format(activeTokens)} token</strong>${unusedTokens ? ` · 未填 ${fmt.format(unusedTokens)} token` : ''}${current.dcp > 1 ? '（各卡合计）' : ''}。显存按分配的整页计算。</p>
-    </div>` : ''}
+    <div class="block-usage">
+      <div class="block-token-track" role="img" aria-label="${activeBlockLabel} 已填 ${fmt.format(activeTokens)} token，未填 ${fmt.format(activeUnused)} token" style="grid-template-columns:${activeTokens}fr ${activeUnused}fr"><span></span><span></span></div>
+      <p class="caption"><strong>${activeBlockLabel} 已填 ${fmt.format(activeTokens)} token</strong>${activeUnused ? ` · 未填 ${fmt.format(activeUnused)} token` : ' · 100%'}${current.dcp > 1 ? '（各卡合计）' : ''}。显存按分配的整页计算。</p>
+    </div>
     ${k3 ? (draftInfo ? `<p class="caption"><strong>Draft 放在哪。</strong> ${gqaPool
         ? `GQA 有独立块表，另占 ${draftInfo.ids} 个历史池块 ID，在同池使用前 ${draftInfo.layers} 行，其余 ${value.poolLayers - draftInfo.layers} 行是空层槽。`
         : `MLA Draft 共用历史池块 ID，草稿页接在第 ${draftInfo.startRow}–${draftInfo.startRow + draftInfo.layers - 1} 行。每个池块都为这 ${draftInfo.layers} 行留空间，KDA 的 ID 在这些行是空槽。`}</p>` : '')
