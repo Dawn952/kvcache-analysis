@@ -34,11 +34,15 @@
     a5: { blockSize: 768, dcpOptions: [1], spec: 3, mlaDraftLayers: 3, maxMlaSpec: 5 },
     a3: { blockSize: 384, dcpOptions: [16, 1], spec: 7, mlaDraftLayers: 5, maxMlaSpec: 7 },
   };
-  const customTpOptions = (platform) => [1, 2, 4, 8, 16].filter(tp => tp <= (platforms[platform]?.tp ?? 0));
+  const instanceNodes = [4, 5, 6, 7, 8];
+  const customTpOptions = (platform) => platforms[platform] ? [1, 2, 4, 8, 16, 32] : [];
   const customDcpOptions = (platform, tp) => customTpOptions(platform).filter(dcp => tp > 0 && tp % dcp === 0);
-  const validCustomParallel = (platform, dp, tp, dcp) => Number.isSafeInteger(dp) && dp > 0
-    && customTpOptions(platform).includes(tp) && customDcpOptions(platform, tp).includes(dcp);
-  const gqaFitsK3Page = (tp) => 2 * k3Preset.gqaKvHeads / tp * k3Preset.gqaHeadDim * 2 <= mlaFormats.BF16.tokenBytes;
+  const validCustomParallel = (platform, dp, tp, dcp, nodes = 8) => Number.isSafeInteger(dp) && dp > 0
+    && instanceNodes.includes(nodes) && customTpOptions(platform).includes(tp)
+    && dp <= Math.floor(nodes * platforms[platform].tp / tp) && customDcpOptions(platform, tp).includes(dcp);
+  const gqaHeadsPerRank = (tp) => Math.max(1, k3Preset.gqaKvHeads / tp);
+  const gqaFitsK3Page = (tp) => 2 * gqaHeadsPerRank(tp) * k3Preset.gqaHeadDim * 2 <= mlaFormats.BF16.tokenBytes;
+  const gqaDcpFitsK3 = (tp, dcp) => dcp === 1 || dcp <= Math.floor(tp / k3Preset.gqaKvHeads);
 
   function kdaGeometry(tp, spec) {
     const heads = 96 / tp;
@@ -55,12 +59,12 @@
   }
 
   function calculate(input, { platform = 'a5', weight = platforms[platform]?.weights[0], dcp, recover, spec,
-    customParallel = false, dp = 4, tp = platforms[platform]?.tp,
+    customParallel = false, dp = 4, tp = platforms[platform]?.tp, nodes = 8, generation = Ki,
     requestedBlock = platforms[platform]?.defaultBlock, mlaDtype = platforms[platform]?.cacheDtype,
     indexDtype = platforms[platform]?.cacheDtype, draftDtype = 'BF16' }) {
     const preset = platforms[platform];
     const validParallel = customParallel
-      ? validCustomParallel(platform, dp, tp, dcp)
+      ? validCustomParallel(platform, dp, tp, dcp, nodes)
       : preset && tp === preset.tp && (dcp === preset.dcp || (platform === 'a5' && dcp === 1));
     if (!validParallel) {
       throw new RangeError('不支持此机型和 DCP 组合');
@@ -80,7 +84,7 @@
     // Upstream sizes the manager block first. Ascend then uses the packed MLA width for its page stride.
     const block = alignBlock(requestedBlock, mla.selectBytes, state);
     const { localBlock } = block;
-    const limit = input + Ki;
+    const limit = input + generation;
     const coverage = localBlock * dcp;
     // Each row sets the engine max_model_len to input + output. allocate_slots
     // caps main tokens plus lookahead at that limit before full-attention paging.
@@ -127,10 +131,10 @@
   }
 
   function calculateK3(input, { platform = 'a5', recover, spec, draftKind = 'mla', customParallel = false,
-    dp = 4, tp = platforms[platform]?.tp,
+    dp = 4, tp = platforms[platform]?.tp, nodes = 8, generation = Ki,
     dcp = k3Platforms[platform]?.dcpOptions[0], mlaDraftLayerCount = k3Platforms[platform]?.mlaDraftLayers }) {
     const preset = k3Platforms[platform];
-    const validParallel = customParallel ? validCustomParallel(platform, dp, tp, dcp)
+    const validParallel = customParallel ? validCustomParallel(platform, dp, tp, dcp, nodes)
       : preset && tp === platforms[platform].tp && preset.dcpOptions.includes(dcp);
     if (!validParallel) throw new RangeError('不支持此 Kimi-K3 机型和并行组合');
     if (draftKind !== 'mla' && draftKind !== 'gqa') throw new RangeError('不支持此 Draft 类型');
@@ -140,14 +144,14 @@
       throw new RangeError('不支持此 Kimi-K3 投机配置');
     }
     if (gqa && spec && !gqaFitsK3Page(tp)) throw new RangeError('GQA Draft 页超过 MLA 共用页宽');
-    if (gqa && spec && customParallel && dcp !== 1) throw new RangeError('Kimi-K3 GQA Draft 的自定义并行要求 DCP=1');
+    if (gqa && spec && customParallel && !gqaDcpFitsK3(tp, dcp)) throw new RangeError('DCP 超过 GQA Draft 的 KV 头复制比例');
 
     const requestedBlock = preset.blockSize;
     const { heads, conv, recurrent, state } = kdaGeometry(tp, spec);
     const tokenBytes = mlaFormats.BF16.tokenBytes;
     const block = alignBlock(requestedBlock, tokenBytes, state);
     const { localBlock } = block;
-    const limit = input + Ki;
+    const limit = input + generation;
     const coverage = localBlock * dcp;
     const historyIds = Math.ceil(limit / coverage);
     const stateCopies = 1 + (recover ? 0 : spec);
@@ -155,7 +159,7 @@
     const mainPage = localBlock * tokenBytes;
     const padding = mainPage - state;
     const draftLayerCount = spec ? (gqa ? k3Preset.gqaDraftLayers : mlaDraftLayerCount) : 0;
-    const gqaHeads = k3Preset.gqaKvHeads / tp;
+    const gqaHeads = gqaHeadsPerRank(tp);
     const draftTokenBytes = gqa ? 2 * gqaHeads * k3Preset.gqaHeadDim * 2 : tokenBytes;
     const draftPayload = localBlock * draftTokenBytes;
     const draftPadding = mainPage - draftPayload;
@@ -206,8 +210,30 @@
       requestedBlock, ...block };
   }
 
+  function estimateCapacity(value, { budgetBytes, prefixPercent, prefixCount }) {
+    if (!Number.isSafeInteger(budgetBytes) || budgetBytes < 0 || !Number.isFinite(prefixPercent)
+      || prefixPercent < 0 || prefixPercent > 100 || !Number.isSafeInteger(prefixCount) || prefixCount < 1) {
+      throw new RangeError('KVCache 容量参数无效');
+    }
+    const { input, coverage, historyIds, stateIds, draftInfo, bytesPerId } = value;
+    const prefixTokens = Math.min(Math.floor(input * prefixPercent / 100), Math.max(0, input - 1));
+    const sharedBlocks = Math.floor(prefixTokens / coverage);
+    const totalBlocks = Math.floor(budgetBytes / bytesPerId);
+    const blocksPerRequest = historyIds + stateIds + (draftInfo?.ids ?? 0);
+    const privateBlocks = blocksPerRequest - sharedBlocks;
+    const withoutSharing = Math.floor(totalBlocks / blocksPerRequest);
+    // A prefix contributes shared pages only when at least one active request uses it.
+    const count = withoutSharing < prefixCount ? withoutSharing
+      : Math.floor((totalBlocks - prefixCount * sharedBlocks) / privateBlocks);
+    const activePrefixes = sharedBlocks ? Math.min(prefixCount, count) : 0;
+    const usedBlocks = count * privateBlocks + activePrefixes * sharedBlocks;
+    return { count, withoutSharing, sharedBlocks, privateBlocks, activePrefixes, totalBlocks,
+      usedBytes: usedBlocks * bytesPerId };
+  }
+
   const model = { Ki, inputs, defaultBlock, platforms, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup,
-    draftLayers, k3Preset, k3Platforms, customTpOptions, customDcpOptions, validCustomParallel, gqaFitsK3Page, calculate, calculateK3 };
+    draftLayers, k3Preset, k3Platforms, instanceNodes, customTpOptions, customDcpOptions, validCustomParallel,
+    gqaFitsK3Page, gqaDcpFitsK3, calculate, calculateK3, estimateCapacity };
   if (typeof module !== 'undefined') module.exports = model;
   else root.KVCache = model;
 })(globalThis);

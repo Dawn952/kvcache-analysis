@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kimi-K3.1 Pro KVCache 对比台</title>
-<link rel="stylesheet" href="style.css?v=31">
+<link rel="stylesheet" href="style.css?v=32">
 <main>
   <header>
     <h1 id="page-title">Kimi-K3.1 Pro KVCache 对比台</h1>
@@ -21,11 +21,12 @@
     <fieldset id="custom-parallel" class="custom-parallel" hidden>
       <legend>自定义并行策略</legend>
       <div class="custom-parallel-fields">
+        <label>实例机数<select id="custom-nodes"><option value="auto">自动（4–8 机）</option></select></label>
         <label>DP<input id="custom-dp" type="number" min="1" step="1" inputmode="numeric" placeholder="填写 DP"></label>
         <label>TP<select id="custom-tp"></select></label>
         <label>DCP<select id="custom-dcp" aria-describedby="custom-parallel-help"></select></label>
       </div>
-      <p class="caption" id="custom-parallel-help">DCP 须整除 TP，选 1 表示关闭。DP 只影响副本数，单请求单卡按同一副本估算。</p>
+      <p class="caption" id="custom-parallel-help">实例卡数按 DP × TP 计算，DCP 复用 TP rank。DCP 须整除 TP，选 1 表示关闭。</p>
       <p id="custom-parallel-size" class="caption" hidden></p>
       <div class="custom-actions">
         <button type="button" id="copy-preset-topology">从预设填入</button>
@@ -74,10 +75,29 @@
     <h2 id="results-title">单请求 · 单卡 KVCache 估算</h2>
     <p class="caption" id="results-scope">按稳态 Decode 和输入＋生成上限计算。<span id="results-evidence"></span></p>
     <p class="caption" id="custom-scenario-note" role="status" hidden>自定义并行策略待配置。</p>
+    <div class="request-fields">
+      <label>自定义请求总长度（token）<input id="custom-length" type="number" min="1" max="1048576" step="1" inputmode="numeric" placeholder="填写 token"></label>
+      <label>其中生成预算（token）<input id="custom-generation" type="number" min="0" max="1048576" step="1" inputmode="numeric" value="0"></label>
+    </div>
+    <p class="caption" id="custom-request-note" role="status" hidden></p>
     <div class="scroll"><table class="results-table" id="results" role="table" aria-describedby="results-scope">
       <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">max-model-len</th><th scope="col" role="columnheader">估算显存</th></tr></thead>
       <tbody role="rowgroup"></tbody>
     </table></div>
+  </section>
+
+  <section aria-labelledby="capacity-title" id="request-capacity">
+    <h2 id="capacity-title">KVCache 能容纳多少条请求</h2>
+    <div class="request-fields capacity-fields">
+      <label>可用 KVCache / 卡（GiB）<input id="cache-budget" type="number" min="0" step="any" inputmode="decimal" placeholder="填写 GiB"></label>
+      <label>输入中相同的前缀比例（%）<input id="prefix-percent" type="number" min="0" max="100" step="any" inputmode="decimal" value="100"></label>
+      <label>不同前缀个数 / DP 副本<input id="prefix-count" type="number" min="1" step="1" inputmode="numeric" value="1"></label>
+    </div>
+    <div id="capacity-result" aria-live="polite"></div>
+    <details><summary>前缀复用与估算口径</summary>
+      <p>比例以当前长度档的输入 token 为基数，生成预算单独计。只有完整逻辑块可共享，并保留最后一个输入 token 的计算位置。各 DP 副本使用各自的 KVCache。</p>
+      <p>每个有请求的前缀计一份共享历史块。每条请求分别计未共享历史、KDA 状态和独立 GQA Draft 块。按稳态驻留估算，调度上限、其他请求的缓存、临时重叠和碎片另计。<a href="https://docs.vllm.ai/en/v0.24.0/api/vllm/v1/core/kv_cache_manager/">vLLM 前缀命中规则</a></p>
+    </details>
   </section>
 
   <section aria-labelledby="layout-title" id="cache-layout">
@@ -100,7 +120,7 @@
       <summary>Kimi-K3 的对齐原理与计算口径</summary>
       <p>按预设 TP，950DT 页宽为 <code>768 × (512 + 64) × 2 = 884,736 B</code>，A3 为 <code>384 × (512 + 64) × 2 = 442,368 B</code>。A3 的 1M Decode 模板使用 DP4 / DCP16 / TP16，每个逻辑 block 覆盖 6,144 token。关闭 DCP 后，每块覆盖 384 token。KDA 每卡分到 <code>96 ÷ TP</code> 个头。降低 TP 后，如果状态放不进原页，就按请求页大小的最小够用倍数对齐。3 个 KDA 组各占 23 个存储行，组间 block ID 互斥。</p>
       <p>950DT 默认使用 Inferact Block5 的 3 层 MLA Draft。A3 默认使用 Eco-Tech 的 5 层 MLA Draft、DSpark 7 token。另一层数档用相同规则做容量对照。MLA Draft 行接在 24 个目标 MLA 行之后，共用历史 block ID。GQA Draft 以 RadixArk 的 5 层配置推算，使用独立 block ID，占整池前 5 行。</p>
-      <p>按单请求稳态 Decode、各档用满 token 预算、无前缀复用估算。A3 的 DCP 关闭拓扑对应 256K 模板，1M 列在该拓扑下仅用于容量推算。GQA Draft 有 16 个 KV 头，当前自定义节点内 TP 下要求 DCP=1。TP1/2 时 GQA 单页比 MLA 页宽，超出现有共用页模型的估算范围。权重、图内存及 RecoverSSM records 另计。<a href="https://github.com/Dawn952/vllm-ascend/blob/6fcafe90e9fe4091685935d162a7a3869aa204ee/vllm_ascend/platform.py#L1971-L2040">Ascend 草稿并行校验</a></p>
+      <p>按单请求稳态 Decode、各档用满 token 预算、无前缀复用估算。A3 的 DCP 关闭拓扑对应 256K 模板，更长请求只做容量对照。GQA Draft 有 16 个 KV 头。TP ≤ 16 时自定义只支持 DCP1，TP32 可选 DCP1 或 DCP2。TP1/2 时 GQA 单页比 MLA 页宽，超出现有共用页估算范围。权重、图内存及 RecoverSSM records 另计。<a href="https://github.com/Dawn952/vllm-ascend/blob/6fcafe90e9fe4091685935d162a7a3869aa204ee/vllm_ascend/platform.py#L1971-L2040">Ascend 草稿并行校验</a></p>
       <p class="sources"><a href="https://docs.vllm.ai/projects/ascend/en/main/tutorials/models/Kimi-K3.html#53-long-context-and-1m-pd-separation-deployment">Kimi-K3 1M Decode 模板</a><a href="https://modelscope.cn/models/Eco-Tech/Kimi-K3-DSpark-MLA-NPU">A3 MLA Draft 权重</a><a href="https://huggingface.co/Inferact/Kimi-K3-DSpark-Block5/blob/a202601f9043e965516e3965d02322a1b8f10310/config.json">950DT MLA Draft 配置</a><a href="https://huggingface.co/RadixArk/Kimi-K3-DSpark/blob/9c4b2577dacb572ce88e8aad4357dffb4f6c9796/config.json">GQA Draft 配置</a><a href="https://github.com/vllm-project/vllm/blob/main/vllm/models/kimi_k3/nvidia/gqa_draft.py#L30-L69">上游 GQA 分组</a></p>
     </details>
     <details id="k31-method">
@@ -128,6 +148,6 @@
   <div class="dialog-head"><div><h2 id="detail-title">占用明细</h2><p id="detail-caption" class="caption"></p></div><form method="dialog"><button>关闭</button></form></div>
   <div id="detail-rows"></div>
 </dialog>
-<script src="model.js?v=22" defer></script>
-<script src="app.js?v=36" defer></script>
+<script src="model.js?v=23" defer></script>
+<script src="app.js?v=37" defer></script>
 </html>

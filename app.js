@@ -1,7 +1,8 @@
 'use strict';
 
-const { inputs, defaultBlock, platforms, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup, draftLayers,
-  k3Preset, k3Platforms, customTpOptions, customDcpOptions, validCustomParallel, gqaFitsK3Page,
+const { Ki, inputs, defaultBlock, platforms, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup, draftLayers,
+  k3Preset, k3Platforms, instanceNodes, customTpOptions, customDcpOptions, validCustomParallel, gqaFitsK3Page, gqaDcpFitsK3,
+  estimateCapacity,
   calculate: calculateK31, calculateK3 } = KVCache;
 const byId = (id) => document.getElementById(id);
 const modelChoice = byId('model');
@@ -11,6 +12,12 @@ const scenario = byId('scenario');
 const customDp = byId('custom-dp');
 const customTp = byId('custom-tp');
 const customDcp = byId('custom-dcp');
+const customNodes = byId('custom-nodes');
+const customLength = byId('custom-length');
+const customGeneration = byId('custom-generation');
+const cacheBudget = byId('cache-budget');
+const prefixPercent = byId('prefix-percent');
+const prefixCount = byId('prefix-count');
 const recover = byId('recover');
 const draft = byId('draft');
 const spec = byId('spec');
@@ -38,6 +45,8 @@ const memory = (bytes) => bytes >= 2 ** 30
   ? `${(bytes / 2 ** 30).toFixed(3)} GiB`
   : `${(bytes / 2 ** 20).toFixed(2)} MiB`;
 const lengths = ['4k+1k', '16k+1k', '64k+1k', '128k+1k', '1M'];
+const customRow = lengths.length;
+const maxLength = Ki * Ki;
 const topology = ({ platform, dcp, dp = 4, tp = platforms[platform].tp }) => `DP${dp}${dcp > 1 ? ` / DCP${dcp}` : ''} / TP${tp}`;
 const weightLabel = (value) => value === 'native' ? 'Moonshot 原生 MXFP4' : value;
 const blockInputPrefix = ({ requestedBlock, localBlock }) => requestedBlock === localBlock ? '' : `${requestedBlock} → `;
@@ -46,6 +55,20 @@ const kdaLayer = (slot, group) => slot * (stateGroups + 1) + group;
 const examplePoolId = (position) => [29, 81, 12, 54][position] ?? 100 + position;
 const calculate = (input, config) => config.modelId === 'k3' ? calculateK3(input, config) : calculateK31(input, config);
 const activeDraftKind = () => draftKinds.find(input => input.checked).value;
+
+function requestAt(row) {
+  if (row !== customRow) return { label: lengths[row], input: inputs[row], generation: Ki, limit: inputs[row] + Ki };
+  const limit = customLength.valueAsNumber;
+  const generation = customGeneration.valueAsNumber;
+  if (!Number.isInteger(limit) || limit < 1 || limit > maxLength
+    || !Number.isInteger(generation) || generation < 0 || generation > limit) return null;
+  return { label: `${fmt.format(limit)} token`, input: limit - generation, generation, limit };
+}
+
+function calculateRequest(row) {
+  const { input, generation } = requestAt(row);
+  return calculate(input, { ...current, generation });
+}
 
 function describe({ recover: enabled, spec: count }, { draftInfo }) {
   const draftLabel = count ? `${draftInfo?.kind ?? 'MLA'} ${draftInfo?.layers ?? draftLayers} 层 / ${count} token` : '关';
@@ -85,8 +108,8 @@ function evidenceMarkup(value) {
 }
 
 function lengthEvidence(row) {
-  return current.modelId === 'k3' && current.platform === 'a3' && current.dcp === 1 && row === lengths.length - 1
-    ? '1M 仅作容量对照，关闭 DCP 的 A3 模板为 256K。'
+  return current.modelId === 'k3' && current.platform === 'a3' && current.dcp === 1 && requestAt(row).limit > 256 * Ki
+    ? `${requestAt(row).label} 仅作容量对照，关闭 DCP 的 A3 模板为 256K。`
     : '';
 }
 
@@ -126,11 +149,20 @@ function applySharedParallel(query) {
   const input = query.get('input');
   if (input && inputs.includes(Number(input))) selected = inputs.indexOf(Number(input));
   scenario.value = 'custom';
+  setOption(customNodes, 'nodes');
   const dp = query.get('dp');
   if (dp && /^[1-9]\d*$/.test(dp) && Number.isSafeInteger(Number(dp))) customDp.value = dp;
   setOption(customTp, 'tp');
   updateCustomDcp();
   setOption(customDcp, 'dcp');
+  if (query.has('length')) {
+    customLength.value = query.get('length');
+    customGeneration.value = query.get('generation') ?? '0';
+    if (requestAt(customRow) && query.get('custom-length-selected') !== '0') selected = customRow;
+  }
+  if (query.has('budget')) cacheBudget.value = query.get('budget');
+  if (query.has('prefix')) prefixPercent.value = query.get('prefix');
+  if (query.has('prefixes')) prefixCount.value = query.get('prefixes');
   render();
 }
 
@@ -147,6 +179,7 @@ function selectPlatform() {
     new Option('自定义', 'custom'));
   presetDcp = dcpOptions[0];
   customDp.value = '';
+  customNodes.value = 'auto';
   customTp.replaceChildren(new Option('选择 TP', ''), ...customTpOptions(platform).map(tp => new Option(tp, tp)));
   updateCustomDcp();
   blockSize.replaceChildren(...preset.blockOptions.map(size => new Option(size, size)));
@@ -188,15 +221,20 @@ function render() {
   const dp = customScenario ? customDp.valueAsNumber : 4;
   const tp = customScenario ? Number(customTp.value) : platforms[platform].tp;
   const dcp = customScenario ? Number(customDcp.value) : Number(scenario.value);
+  const nodes = customScenario && customNodes.value !== 'auto' ? Number(customNodes.value) : instanceNodes.at(-1);
+  const cardsPerNode = platforms[platform].tp;
   const gqaDraft = k3 && !mla && draftEnabled;
-  const validTopology = validCustomParallel(platform, dp, tp, dcp);
-  const gqaIssue = gqaDraft && (tp > 0 && !gqaFitsK3Page(tp) || dcp > 1);
+  const validTopology = validCustomParallel(platform, dp, tp, dcp, nodes);
+  const gqaIssue = gqaDraft && ((tp > 0 && !gqaFitsK3Page(tp)) || (dcp > 0 && !gqaDcpFitsK3(tp, dcp)));
   const pendingScenario = customScenario && (!validTopology || gqaIssue);
   byId('custom-parallel').hidden = !customScenario;
   if (!customScenario) presetDcp = dcp;
   const size = byId('custom-parallel-size');
   size.hidden = !customScenario || !validTopology;
-  if (customScenario && validTopology) size.textContent = `DP × TP = ${fmt.format(BigInt(dp) * BigInt(tp))} 个并行 rank，DCP 复用 TP rank。`;
+  if (customScenario && validTopology) {
+    const instanceSize = customNodes.value === 'auto' ? Math.max(instanceNodes[0], Math.ceil(dp * tp / cardsPerNode)) : nodes;
+    size.textContent = `${instanceSize} 机 × ${cardsPerNode} 卡 / 机，使用 ${dp * tp} / ${instanceSize * cardsPerNode} 卡（DP × TP）。`;
+  }
   byId('copy-parallel-link').disabled = pendingScenario;
   byId('parallel-link-status').textContent = '';
   byId('parallel-link-fallback').hidden = true;
@@ -214,7 +252,7 @@ function render() {
     : '使用独立的历史块表。Ascend 的 GQA 布局按容量推算。';
   recover.disabled = !draftEnabled;
   current = { modelId: modelChoice.value, draftKind: kind, mlaDraftLayerCount: Number(mlaDraftLayers.value), platform,
-    weight: weight.value, customParallel: customScenario, dp, tp, dcp, recover: draftEnabled && recover.checked,
+    weight: weight.value, customParallel: customScenario, dp, tp, dcp, nodes, recover: draftEnabled && recover.checked,
     spec: draftEnabled ? Number(spec.value) : 0, requestedBlock: Number(blockSize.value),
     mlaDtype: mlaDtype.value, indexDtype: indexDtype.value, draftDtype: draftDtype.value };
   byId('native-weight-note').hidden = current.weight !== 'native';
@@ -223,15 +261,23 @@ function render() {
   const customNote = byId('custom-scenario-note');
   customNote.hidden = !pendingScenario;
   if (pendingScenario) {
-    customNote.textContent = gqaIssue ? 'GQA Draft 的共用页估算要求 TP 至少为 4、DCP 为 1。'
-      : customDp.value && (!Number.isSafeInteger(dp) || dp < 1) ? 'DP 须为正整数。' : '填写 DP、TP 和 DCP 后显示估算。';
+    if (customDp.value && (!Number.isSafeInteger(dp) || dp < 1)) customNote.textContent = 'DP 须为正整数。';
+    else if (dp > 0 && tp > 0 && dp > Math.floor(nodes * cardsPerNode / tp)) customNote.textContent = `DP × TP 超过 ${nodes} 机的 ${nodes * cardsPerNode} 卡上限。`;
+    else if (gqaIssue) customNote.textContent = 'GQA Draft 须 TP ≥ 4。TP ≤ 16 时仅支持 DCP1，TP32 可选 DCP1 或 DCP2。';
+    else customNote.textContent = '填写 DP、TP 和 DCP 后显示估算。';
   }
   byId('cache-layout').hidden = pendingScenario;
   results.setAttribute('aria-describedby', pendingScenario ? 'custom-scenario-note' : 'results-scope');
-  results.tBodies[0].innerHTML = lengths.map((length, index) => {
+  const custom = requestAt(customRow);
+  if (selected === customRow && !custom) selected = 3;
+  const lengthNote = byId('custom-request-note');
+  lengthNote.hidden = !customLength.value || Boolean(custom);
+  lengthNote.textContent = '请求总长度须为 1–1,048,576 的整数，生成预算须在 0 与总长度之间。';
+  const rows = custom ? [...lengths, custom.label] : lengths;
+  results.style.setProperty('--result-count', rows.length);
+  results.tBodies[0].innerHTML = rows.map((length, index) => {
     if (pendingScenario) return `<tr role="row"><th scope="row" role="rowheader">${length}</th><td role="cell"></td></tr>`;
-    const input = inputs[index];
-    const value = memory(calculate(input, current).bytes);
+    const value = memory(calculateRequest(index).bytes);
     const scopeLabel = lengthEvidence(index) ? '<small>容量对照</small>' : '';
     return `<tr role="row">
       <th scope="row" role="rowheader"><button type="button" class="length" data-row="${index}" aria-controls="cache-layout">${length}${scopeLabel}</button></th>
@@ -239,6 +285,7 @@ function render() {
     </tr>`;
   }).join('');
   if (!pendingScenario) updateSelection();
+  else renderCapacity();
 }
 
 function updateSelection() {
@@ -248,6 +295,39 @@ function updateSelection() {
     if (button.classList.contains('length')) button.setAttribute('aria-pressed', active);
   }
   renderLayout();
+  renderCapacity();
+}
+
+function renderCapacity() {
+  const result = byId('capacity-result');
+  if (byId('cache-layout').hidden) {
+    result.textContent = '并行策略待配置。';
+    return;
+  }
+  const { label } = requestAt(selected);
+  if (!cacheBudget.value) {
+    result.textContent = `当前长度：${label}。填写每卡可用 KVCache 后计算。`;
+    return;
+  }
+  const budgetBytes = Math.floor(cacheBudget.valueAsNumber * 2 ** 30);
+  const samePrefix = prefixPercent.valueAsNumber;
+  const prefixes = prefixCount.valueAsNumber;
+  if (!Number.isSafeInteger(budgetBytes) || budgetBytes < 0 || !Number.isFinite(samePrefix) || samePrefix < 0 || samePrefix > 100
+    || !Number.isSafeInteger(prefixes) || prefixes < 1) {
+    result.textContent = '请填写有效容量、0–100% 的前缀比例和正整数前缀个数。';
+    return;
+  }
+  const value = calculateRequest(selected);
+  const capacity = estimateCapacity(value, { budgetBytes, prefixPercent: samePrefix, prefixCount: prefixes });
+  const perReplica = fmt.format(capacity.count);
+  const total = fmt.format(BigInt(capacity.count) * BigInt(current.dp));
+  result.innerHTML = `
+    <div class="capacity-totals">
+      <div><small>${label} · 每个 DP 副本</small><strong>${perReplica} 条</strong></div>
+      <div><small>DP${current.dp} 总计（各副本同分布）</small><strong>${total} 条</strong></div>
+      <div><small>无前缀复用 / 副本</small><strong>${fmt.format(capacity.withoutSharing)} 条</strong></div>
+    </div>
+    <p class="caption">${fmt.format(capacity.totalBlocks)} 个池块可用。每个活跃前缀共享 ${fmt.format(capacity.sharedBlocks)} 块，每条请求独占 ${fmt.format(capacity.privateBlocks)} 块。本档启用 ${fmt.format(capacity.activePrefixes)} 个共享前缀，单卡占用 ${memory(capacity.usedBytes)}。</p>`;
 }
 
 function renderBlockSize({ requestedBlock, localBlock, upstreamQuantumBytes, alignmentMultiple, pages }) {
@@ -287,7 +367,7 @@ function allocationFormula({ historyIds, stateCopies, draftInfo, poolLayers, pag
 }
 
 function renderLayout() {
-  const value = calculate(inputs[selected], current);
+  const value = calculateRequest(selected);
   const gqa = Boolean(value.draftInfo?.ids);
   const mlaDraft = value.draftInfo?.kind === 'MLA';
   const separateDraftIds = value.draftInfo?.ids ?? 0;
@@ -306,7 +386,7 @@ function renderLayout() {
   });
   const sideRow = (name, layers, kind, text) => `<tr><th scope="row">${name} 区 × ${layers} 层</th><td class="${kind}">${text}</td>${groups.map(() => '<td class="empty">预留空页</td>').join('')}</tr>`;
   byId('results-evidence').innerHTML = evidenceMarkup(value) + '。';
-  layoutCaption.innerHTML = `${lengths[selected]} · ${topology(current)} · ${describe(current, value)} · 生效页大小 ${renderBlockSize(value)}`;
+  layoutCaption.innerHTML = `${requestAt(selected).label} · ${topology(current)} · ${describe(current, value)} · 生效页大小 ${renderBlockSize(value)}`;
   const scope = byId('layout-scope');
   scope.textContent = lengthEvidence(selected);
   scope.hidden = !scope.textContent;
@@ -542,7 +622,7 @@ byId('cache-layout').addEventListener('click', (event) => {
 });
 
 function selectMlaId(id) {
-  const value = calculate(inputs[selected], current);
+  const value = calculateRequest(selected);
   selectedMlaId = Math.max(0, Math.min(id, value.historyIds - 1));
   renderLayoutVisual(value, true);
 }
@@ -600,11 +680,11 @@ layout.addEventListener('click', (event) => {
 
 function openDetail(row) {
   const config = current;
-  const value = calculate(inputs[row], config);
+  const value = calculateRequest(row);
   byId('detail-title').textContent = `${memory(value.bytes)} / 卡`;
   const draftLabel = value.pages.draft ? ` · 草稿 KV ${config.draftDtype}` : '';
   const indexLabel = value.pages.index ? ` · Indexer ${config.indexDtype}` : '';
-  byId('detail-caption').textContent = `${modelChoice.selectedOptions[0].textContent} · ${hardware.selectedOptions[0].textContent} · ${lengths[row]} · ${topology(config)} · ${weightLabel(config.weight)} · ${describe(config, value)} · block ${blockInputPrefix(value)}${value.localBlock} token / 卡 · MLA ${config.mlaDtype}${indexLabel}${draftLabel}`;
+  byId('detail-caption').textContent = `${modelChoice.selectedOptions[0].textContent} · ${hardware.selectedOptions[0].textContent} · ${requestAt(row).label} · ${topology(config)} · ${weightLabel(config.weight)} · ${describe(config, value)} · block ${blockInputPrefix(value)}${value.localBlock} token / 卡 · MLA ${config.mlaDtype}${indexLabel}${draftLabel}`;
   byId('detail-rows').innerHTML = `<p class="caption">单卡占用按模型估算。 ${evidenceMarkup(value)}。 ${lengthEvidence(row)}</p>
     ${allocationFormula(value)}
     <p class="caption">MLA 历史块数 = ⌈${fmt.format(value.limit)} token ÷ ${fmt.format(value.coverage)} token / 块⌉ = ${value.historyIds}。另外有 ${value.stateIds} 个池块 ID 存 KDA 状态${value.draftInfo?.ids ? `，${value.draftInfo.ids} 个存 GQA 草稿历史` : ''}。每个 ID 都预留一组层页，分项中列出的空层槽和空页也计入占用。</p>
@@ -621,12 +701,19 @@ results.addEventListener('click', (event) => {
 });
 
 mlaDraftLayers.replaceChildren(...k3Preset.mlaDraftLayerOptions.map(count => new Option(`${count} 层`, count)));
+customNodes.append(...instanceNodes.map(nodes => new Option(`${nodes} 机`, nodes)));
+customNodes.addEventListener('change', render);
 customDp.addEventListener('input', render);
 customTp.addEventListener('change', () => {
   updateCustomDcp();
   render();
 });
 customDcp.addEventListener('change', render);
+for (const control of [customLength, customGeneration]) control.addEventListener('input', () => {
+  if (requestAt(customRow)) selected = customRow;
+  render();
+});
+for (const control of [cacheBudget, prefixPercent, prefixCount]) control.addEventListener('input', renderCapacity);
 byId('copy-preset-topology').addEventListener('click', () => {
   customDp.value = '4';
   customTp.value = String(platforms[hardware.value].tp);
@@ -639,11 +726,20 @@ byId('copy-parallel-link').addEventListener('click', async () => {
   url.hash = '';
   url.search = new URLSearchParams({
     model: current.modelId, platform: current.platform, weight: current.weight, scenario: 'custom',
-    dp: current.dp, tp: current.tp, dcp: current.dcp, input: inputs[selected],
+    dp: current.dp, tp: current.tp, dcp: current.dcp, nodes: customNodes.value, input: requestAt(selected).input,
     block: current.requestedBlock, mla: current.mlaDtype, index: current.indexDtype, draftdtype: current.draftDtype,
     draft: Number(draft.checked), recover: Number(recover.checked), spec: spec.value,
     kind: current.draftKind, layers: current.mlaDraftLayerCount,
   }).toString();
+  const custom = requestAt(customRow);
+  if (custom) {
+    url.searchParams.set('length', custom.limit);
+    url.searchParams.set('generation', custom.generation);
+    url.searchParams.set('custom-length-selected', selected === customRow ? '1' : '0');
+  }
+  if (cacheBudget.value) url.searchParams.set('budget', cacheBudget.value);
+  url.searchParams.set('prefix', prefixPercent.value);
+  url.searchParams.set('prefixes', prefixCount.value);
   const link = byId('parallel-link-url');
   try {
     await navigator.clipboard.writeText(url.href);
@@ -666,6 +762,11 @@ modelChoice.addEventListener('change', () => selectModel());
 byId('reset').addEventListener('click', () => {
   selected = 3;
   selectedMlaId = 0;
+  customLength.value = '';
+  customGeneration.value = '0';
+  cacheBudget.value = '';
+  prefixPercent.value = '100';
+  prefixCount.value = '1';
   const scroller = layoutVisual.querySelector('.visual-block-scroll');
   if (scroller) scroller.scrollLeft = 0;
   selectModel();

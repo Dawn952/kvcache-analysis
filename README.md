@@ -8,7 +8,9 @@ Kimi-K3.1 Pro 在 Ascend 950DT 上可选 `DP4 / DCP8 / TP8` 或 `DP4 / TP8`。�
 
 Kimi-K3 按 `LBNHC` 展示 BF16 KV。950DT 场景采用 DP4 / TP8、768 token / 卡，默认 3 层 MLA Draft。Atlas 800I A3 场景采用公开 1M Decode 模板的 DP4 / DCP16 / TP16、384 token / 卡和 5 层 MLA Draft、DSpark7，另可切到 DP4 / TP16。两种机型均可切换 3 / 5 层作容量对照。GQA Draft 采用 RadixArk 的 5 层配置，按上游独立缓存组推算。图中标出 KDA 和 GQA 的页内 padding、各组未使用的层槽与 MLA Draft 的存储行。
 
-两个模型的所有机型和权重都可选择自定义 Decode 并行。950DT 可选 TP1/2/4/8，A3 另有 TP16。DCP 须整除 TP，DP 影响副本数。K3 开启 GQA Draft 的自定义组合要求 TP≥4、DCP=1。可从当前预设填入并行值，或复制包含模型、权重、并行和缓存参数的配置链接。自定义场景用于容量推算。
+两个模型的所有机型和权重都可选择自定义 Decode 并行。一个实例按 4–8 台机器计算，950DT 每机 8 卡，A3 每机 16 卡。TP 可选 1、2、4、8、16、32，DP × TP 不能超过实例卡数，DCP 须整除 TP。K3 的 GQA Draft 自定义估算要求 TP≥4，TP32 可选 DCP1 或 DCP2，其余只支持 DCP1。可从预设填入并行值，或复制配置链接。自定义场景用于容量推算。
+
+可填入 1–1,048,576 token 的自定义请求总长度和其中的生成预算。容量面板使用当前选中长度，输入每卡 KVCache、共享前缀比例和不同前缀数后，给出每副本与整个实例的理论同时驻留条数。只有完整历史块计入共享，KDA 状态和独立 GQA Draft 块按请求计。
 
 950DT 的 `--block-size` 可在 640、1024、1408 和 1536 之间切换，默认传入 1536。页面按固定版上游选块规则推算生效值，再按 Ascend 打包后的页宽计算显存。1536 token 的 DCP8 页几何有 A5 Atlas 历史日志。A3 的 paired 页几何按公开模板及源码复核。
 

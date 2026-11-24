@@ -98,9 +98,9 @@ p {
 
 .custom-parallel-fields {
   display: grid;
-  grid-template-columns: repeat(3,minmax(0,1fr));
+  grid-template-columns: repeat(4,minmax(0,1fr));
   gap: .65rem;
-  max-width: 30rem;
+  max-width: 36rem;
 }
 
 .custom-parallel-fields label {
@@ -377,7 +377,7 @@ thead th {
 
 .results-table {
   display: grid;
-  grid-template-columns: minmax(0,1.25fr) repeat(5,minmax(0,1fr));
+  grid-template-columns: minmax(0,1.25fr) repeat(var(--result-count,5),minmax(0,1fr));
   min-width: 36rem;
 }
 
@@ -437,6 +437,47 @@ thead th {
   color: var(--muted);
   font-weight: 400;
   margin-inline-start: .25rem;
+}
+
+.request-fields, .capacity-totals {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: .65rem;
+  margin: .75rem 0;
+  max-width: 34rem;
+}
+
+.request-fields label {
+  display: grid;
+  gap: .3rem;
+  min-width: 0;
+  color: var(--muted);
+  font-size: .9rem;
+}
+
+.request-fields input[type="number"] {
+  width: 100%;
+}
+
+.capacity-fields, .capacity-totals {
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  max-width: 48rem;
+}
+
+#capacity-result {
+  padding: .45rem 0 .6rem;
+}
+
+.capacity-totals > div {
+  display: grid;
+  gap: .25rem;
+  padding: .6rem;
+  border: 1px solid var(--line);
+  border-radius: .5rem;
+}
+
+.capacity-totals strong {
+  color: var(--accent);
 }
 
 .value,.length {
@@ -826,6 +867,12 @@ dialog::backdrop {
 }
 
 @media(max-width:640px) {
+  .custom-parallel-fields {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+  .capacity-fields, .capacity-totals {
+    grid-template-columns: 1fr;
+  }
   .results-table {
     grid-template-columns: 1fr;
     min-width: 0;
