@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Kimi K3.1 的历史与 KDA 状态缓存如何共用空闲块池，以及页槽复用的空间成本。">
-  <title>Kimi K3.1 的 LBNHC 缓存布局 · KVCache 对比台</title>
+  <title>Kimi K3.1的KVCache布局原理计算 · KVCache 对比台</title>
   <link rel="stylesheet" href="style.css?v=36">
   <link rel="stylesheet" href="lbnhc-design/article.css?v=e03c120b27f4">
 </head>
@@ -12,10 +12,10 @@
 <main class="design-page">
   <nav class="design-nav" aria-label="KVCache 对比台">
     <a href="index.html">KVCache 对比台</a>
-    <a href="lbnhc-design/lbnhc-public.zip?v=e03c120b27f4">下载完整图文和计算附件</a>
+    <a href="lbnhc-design/lbnhc-public.zip?v=ff809c23c1a0">下载完整图文和计算附件</a>
   </nav>
   <article>
-<h1 id="kimi-k31-的-lbnhc-缓存布局">Kimi K3.1 的 LBNHC 缓存布局</h1>
+<h1 id="kimi-k31-的-lbnhc-缓存布局">Kimi K3.1的KVCache布局原理计算</h1>
 <p><strong>历史缓存随 token 增长，KDA 按请求保留有限份状态。</strong> 一条长请求会占用更多历史空间，几条短请求则各自需要一套状态。请求组合变了，两类缓存需要分到的显存也会变。</p>
 <p>Kimi K3.1 的这套 LBNHC 实现让各层保持自己的缓存页格式。历史缓存和 KDA 共用空闲块池，KDA 状态借用主 MLA 的页存放。给 KDA 分配一整块，就要一并留出这块里用不到的历史页。</p>
 <p>算例采用标准出口配置 <code>DP4TP8DCP8</code>、<code>DSpark3</code>，开启 <code>RecoverSSM</code>。每轮推测 3 个 token，preview draft 模型有 5 层。</p>
