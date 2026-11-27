@@ -6,6 +6,11 @@
   --text: #eef5ff;
   --muted: #a8b8cc;
   --accent: #79d8fa;
+  --heading-band: #172b43;
+  --heading-border: #395974;
+  --heading-text: #f2f8ff;
+  --diagram-heading: #c8e6f8;
+  --diagram-note: #9cb3ca;
   font-family: Inter,'Microsoft YaHei',system-ui,sans-serif;
   background: var(--bg);
   color: var(--text);
@@ -44,16 +49,27 @@ h2 {
 .comparison-page section h2,
 .tool-dialog .dialog-head h2,
 #detail .dialog-head h2 {
+  color: var(--heading-text);
   font-size: clamp(1.35rem, 2.2vw, 1.65rem);
   font-weight: 720;
   line-height: 1.25;
   letter-spacing: -.015em;
 }
 
+.comparison-page .settings-heading,
+.comparison-page #layout-title {
+  padding: .55rem .75rem;
+  border-inline-start: 3px solid var(--accent);
+  border-block-end: 1px solid var(--heading-border);
+  border-radius: .28rem;
+  background: linear-gradient(90deg, var(--heading-band), #142237);
+}
+
 .comparison-page #cache-layout h3 {
   margin: 1.4rem 0 .7rem;
   padding-inline-start: .6rem;
-  border-inline-start: 2px solid var(--accent);
+  border-inline-start: 2px solid #6088a5;
+  color: var(--diagram-heading);
   font-size: 1.12rem;
   font-weight: 680;
   line-height: 1.4;
@@ -610,7 +626,7 @@ thead th {
 .block-path > div > small:first-child,
 .space-guide > div > small:first-child,
 .capacity-totals > div > small {
-  color: #d3e4f9;
+  color: var(--diagram-heading);
   font-weight: 650;
   line-height: 1.4;
 }
@@ -676,7 +692,7 @@ summary {
 
 #cache-layout details > summary,
 .tool-dialog details > summary {
-  color: var(--text);
+  color: var(--diagram-heading);
   font-size: .975rem;
   font-weight: 650;
   line-height: 1.45;
@@ -684,7 +700,7 @@ summary {
 
 #cache-layout details > summary::marker,
 .tool-dialog details > summary::marker {
-  color: var(--accent);
+  color: #83abc7;
 }
 
 li {
@@ -735,6 +751,8 @@ dialog::backdrop {
 
 .tool-launcher {
   justify-content: space-between;
+  background: var(--heading-band);
+  border-color: var(--heading-border);
 }
 
 .tool-launcher h2 {
@@ -1168,14 +1186,18 @@ dialog::backdrop {
   align-items: baseline;
   gap: .2rem .65rem;
   margin: .7rem 0 .35rem;
+  padding: .35rem .5rem;
+  border-radius: .25rem;
+  background: #162a40;
 }
 
 .byte-label > strong {
-  color: var(--text);
+  color: var(--diagram-heading);
   font-weight: 680;
 }
 
 .block-zoom .byte-label > strong + span {
+  color: var(--diagram-note);
   margin-inline-start: 0;
   font-size: .875rem;
 }
