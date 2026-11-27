@@ -41,6 +41,24 @@ h2 {
   margin: 0 0 .6rem;
 }
 
+.comparison-page section h2,
+.tool-dialog .dialog-head h2,
+#detail .dialog-head h2 {
+  font-size: clamp(1.35rem, 2.2vw, 1.65rem);
+  font-weight: 720;
+  line-height: 1.25;
+  letter-spacing: -.015em;
+}
+
+.comparison-page #cache-layout h3 {
+  margin: 1.4rem 0 .7rem;
+  padding-inline-start: .6rem;
+  border-inline-start: 2px solid var(--accent);
+  font-size: 1.12rem;
+  font-weight: 680;
+  line-height: 1.4;
+}
+
 section {
   padding: 1.25rem 1.4rem;
   border: 1px solid var(--line);
@@ -224,7 +242,8 @@ select:disabled {
   color: var(--text);
   margin-inline: auto;
   padding: 0 .25rem;
-  font-weight: 650;
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .option-fields {
@@ -588,6 +607,14 @@ thead th {
   font-size: 1.16rem;
 }
 
+.block-path > div > small:first-child,
+.space-guide > div > small:first-child,
+.capacity-totals > div > small {
+  color: #d3e4f9;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
 .space-guide > div:nth-child(1) { border-inline-start: 3px solid var(--accent); }
 .space-guide > div:nth-child(2) { border-inline-start: 3px solid #7fae9d; }
 .space-guide > div:nth-child(3) { border-inline-start: 3px solid #a8b8cc; }
@@ -645,6 +672,19 @@ details {
 
 summary {
   cursor: pointer;
+}
+
+#cache-layout details > summary,
+.tool-dialog details > summary {
+  color: var(--text);
+  font-size: .975rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+#cache-layout details > summary::marker,
+.tool-dialog details > summary::marker {
+  color: var(--accent);
 }
 
 li {
@@ -1123,7 +1163,21 @@ dialog::backdrop {
 }
 
 .byte-label {
-  margin: .55rem 0 .3rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .2rem .65rem;
+  margin: .7rem 0 .35rem;
+}
+
+.byte-label > strong {
+  color: var(--text);
+  font-weight: 680;
+}
+
+.block-zoom .byte-label > strong + span {
+  margin-inline-start: 0;
+  font-size: .875rem;
 }
 
 .byte-track {
