@@ -1,0 +1,31 @@
+.design-page {
+  width: min(920px, 100% - 2rem);
+  font-size: 1.0625rem;
+  padding-top: clamp(1.5rem, 4vw, 3rem);
+}
+
+.design-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem 1.25rem;
+  margin-bottom: 1.5rem;
+  font-size: .9375rem;
+}
+
+.design-page article > h1 { margin-bottom: 1.1rem; text-wrap: balance; }
+.design-page article > h2 { margin: 2.5rem 0 .85rem; }
+.design-page article > h3 { margin: 1.75rem 0 .5rem; }
+.design-page p { line-height: 1.8; }
+.design-page img { display: block; max-width: 100%; height: auto; margin: 1.5rem auto; border-radius: .4rem; }
+.design-page .article-table { overflow-x: auto; }
+.design-page table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.design-page th, .design-page td { padding: .6rem .65rem; border-bottom: 1px solid var(--line); text-align: left; }
+.design-page th { background: var(--panel); }
+.design-page pre { overflow-x: auto; padding: 1rem; border-radius: .4rem; background: var(--panel); font-size: .9rem; }
+.design-page code { overflow-wrap: anywhere; }
+.design-page pre code { overflow-wrap: normal; }
+.design-page hr { border: 0; border-top: 1px solid var(--line); margin: 2rem 0; }
+
+@media (max-width: 520px) {
+  .design-page th, .design-page td { padding: .5rem .4rem; }
+}

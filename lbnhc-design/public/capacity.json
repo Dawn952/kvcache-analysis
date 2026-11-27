@@ -1,0 +1,508 @@
+{
+  "scope": "Per-card capacity arithmetic for the article's stated inputs; not HBM or operator measurement.",
+  "parameters": {
+    "parallel": {
+      "dp": 4,
+      "tp": 8,
+      "dcp": 8
+    },
+    "sequence": {
+      "input_tokens": 131072,
+      "output_budget_tokens": 1024,
+      "interleave_tokens": 768
+    },
+    "model": {
+      "main_layers": 24,
+      "indexer_layers": 24,
+      "draft_layers": 5,
+      "kda_layers": 69,
+      "global_kda_heads": 96,
+      "kda_head_dim": 128,
+      "conv_kernel_width": 4
+    },
+    "decode": {
+      "speculative_tokens": 3,
+      "recover_ssm": true,
+      "record_capacity": 64
+    },
+    "cache": {
+      "local_page_tokens": 1536,
+      "operator_page_tokens": 128,
+      "mla_bytes_per_token": 656,
+      "indexer_bytes_per_token": 132,
+      "draft_bytes_per_token": 1152,
+      "conv_element_bytes": 2,
+      "recurrent_element_bytes": 4,
+      "base_state_pages": 1,
+      "boundary_extra_state_pages": 1,
+      "extra_speculative_state_pages": 0,
+      "extra_prefill_checkpoint_pages": 0,
+      "null_ids": 1
+    },
+    "alignment_example": {
+      "requested_page_tokens": 768,
+      "generic_mla_bytes_per_token": 576
+    }
+  },
+  "derived": {
+    "kda_heads_per_rank": 12,
+    "conv_state_bytes": 55296,
+    "recurrent_state_bytes": 786432,
+    "group_widths": [
+      23,
+      23,
+      23
+    ],
+    "states_per_kda_layer": 1,
+    "boundary_states_per_kda_layer": 2,
+    "mla_page_bytes": 1007616,
+    "indexer_page_bytes": 202752,
+    "draft_page_bytes": 1769472,
+    "aligned_page_tokens_for_this_example": 1536,
+    "correction_bytes_per_layer_slot": 24576,
+    "key_gate_bytes_per_layer_slot": 24576,
+    "record_bytes_per_slot": 3391488,
+    "records_at_declared_capacity_bytes": 217055232
+  },
+  "ranks": [
+    {
+      "dcp_rank": 0,
+      "local_history_tokens": 16896,
+      "history_ids": 11,
+      "state_ids": 3,
+      "null_ids": 1,
+      "total_ids": 15,
+      "pool_id_bytes": 37896192,
+      "state_bytes": 841728,
+      "components": {
+        "mla_history": 266010624,
+        "indexer_history": 53526528,
+        "draft_history": 97320960,
+        "kda_effective_states": 58079232,
+        "kda_page_padding": 11446272,
+        "kda_unused_layer_slots": 3022848,
+        "kda_id_empty_indexer_draft": 41140224,
+        "history_tail": 0,
+        "null_id": 37896192
+      },
+      "effective_bytes": 474937344,
+      "overhead_bytes": 93505536,
+      "pool_bytes": 568442880,
+      "pool_mib": 542.109375
+    },
+    {
+      "dcp_rank": 1,
+      "local_history_tokens": 16896,
+      "history_ids": 11,
+      "state_ids": 3,
+      "null_ids": 1,
+      "total_ids": 15,
+      "pool_id_bytes": 37896192,
+      "state_bytes": 841728,
+      "components": {
+        "mla_history": 266010624,
+        "indexer_history": 53526528,
+        "draft_history": 97320960,
+        "kda_effective_states": 58079232,
+        "kda_page_padding": 11446272,
+        "kda_unused_layer_slots": 3022848,
+        "kda_id_empty_indexer_draft": 41140224,
+        "history_tail": 0,
+        "null_id": 37896192
+      },
+      "effective_bytes": 474937344,
+      "overhead_bytes": 93505536,
+      "pool_bytes": 568442880,
+      "pool_mib": 542.109375
+    },
+    {
+      "dcp_rank": 2,
+      "local_history_tokens": 16896,
+      "history_ids": 11,
+      "state_ids": 3,
+      "null_ids": 1,
+      "total_ids": 15,
+      "pool_id_bytes": 37896192,
+      "state_bytes": 841728,
+      "components": {
+        "mla_history": 266010624,
+        "indexer_history": 53526528,
+        "draft_history": 97320960,
+        "kda_effective_states": 58079232,
+        "kda_page_padding": 11446272,
+        "kda_unused_layer_slots": 3022848,
+        "kda_id_empty_indexer_draft": 41140224,
+        "history_tail": 0,
+        "null_id": 37896192
+      },
+      "effective_bytes": 474937344,
+      "overhead_bytes": 93505536,
+      "pool_bytes": 568442880,
+      "pool_mib": 542.109375
+    },
+    {
+      "dcp_rank": 3,
+      "local_history_tokens": 16896,
+      "history_ids": 11,
+      "state_ids": 3,
+      "null_ids": 1,
+      "total_ids": 15,
+      "pool_id_bytes": 37896192,
+      "state_bytes": 841728,
+      "components": {
+        "mla_history": 266010624,
+        "indexer_history": 53526528,
+        "draft_history": 97320960,
+        "kda_effective_states": 58079232,
+        "kda_page_padding": 11446272,
+        "kda_unused_layer_slots": 3022848,
+        "kda_id_empty_indexer_draft": 41140224,
+        "history_tail": 0,
+        "null_id": 37896192
+      },
+      "effective_bytes": 474937344,
+      "overhead_bytes": 93505536,
+      "pool_bytes": 568442880,
+      "pool_mib": 542.109375
+    },
+    {
+      "dcp_rank": 4,
+      "local_history_tokens": 16128,
+      "history_ids": 11,
+      "state_ids": 3,
+      "null_ids": 1,
+      "total_ids": 15,
+      "pool_id_bytes": 37896192,
+      "state_bytes": 841728,
+      "components": {
+        "mla_history": 253919232,
+        "indexer_history": 51093504,
+        "draft_history": 92897280,
+        "kda_effective_states": 58079232,
+        "kda_page_padding": 11446272,
+        "kda_unused_layer_slots": 3022848,
+        "kda_id_empty_indexer_draft": 41140224,
+        "history_tail": 18948096,
+        "null_id": 37896192
+      },
+      "effective_bytes": 455989248,
+      "overhead_bytes": 112453632,
+      "pool_bytes": 568442880,
+      "pool_mib": 542.109375
+    },
+    {
+      "dcp_rank": 5,
+      "local_history_tokens": 16128,
+      "history_ids": 11,
+      "state_ids": 3,
+      "null_ids": 1,
+      "total_ids": 15,
+      "pool_id_bytes": 37896192,
+      "state_bytes": 841728,
+      "components": {
+        "mla_history": 253919232,
+        "indexer_history": 51093504,
+        "draft_history": 92897280,
+        "kda_effective_states": 58079232,
+        "kda_page_padding": 11446272,
+        "kda_unused_layer_slots": 3022848,
+        "kda_id_empty_indexer_draft": 41140224,
+        "history_tail": 18948096,
+        "null_id": 37896192
+      },
+      "effective_bytes": 455989248,
+      "overhead_bytes": 112453632,
+      "pool_bytes": 568442880,
+      "pool_mib": 542.109375
+    },
+    {
+      "dcp_rank": 6,
+      "local_history_tokens": 16128,
+      "history_ids": 11,
+      "state_ids": 3,
+      "null_ids": 1,
+      "total_ids": 15,
+      "pool_id_bytes": 37896192,
+      "state_bytes": 841728,
+      "components": {
+        "mla_history": 253919232,
+        "indexer_history": 51093504,
+        "draft_history": 92897280,
+        "kda_effective_states": 58079232,
+        "kda_page_padding": 11446272,
+        "kda_unused_layer_slots": 3022848,
+        "kda_id_empty_indexer_draft": 41140224,
+        "history_tail": 18948096,
+        "null_id": 37896192
+      },
+      "effective_bytes": 455989248,
+      "overhead_bytes": 112453632,
+      "pool_bytes": 568442880,
+      "pool_mib": 542.109375
+    },
+    {
+      "dcp_rank": 7,
+      "local_history_tokens": 16128,
+      "history_ids": 11,
+      "state_ids": 3,
+      "null_ids": 1,
+      "total_ids": 15,
+      "pool_id_bytes": 37896192,
+      "state_bytes": 841728,
+      "components": {
+        "mla_history": 253919232,
+        "indexer_history": 51093504,
+        "draft_history": 92897280,
+        "kda_effective_states": 58079232,
+        "kda_page_padding": 11446272,
+        "kda_unused_layer_slots": 3022848,
+        "kda_id_empty_indexer_draft": 41140224,
+        "history_tail": 18948096,
+        "null_id": 37896192
+      },
+      "effective_bytes": 455989248,
+      "overhead_bytes": 112453632,
+      "pool_bytes": 568442880,
+      "pool_mib": 542.109375
+    }
+  ],
+  "boundary_ranks": [
+    {
+      "dcp_rank": 0,
+      "local_history_tokens": 16896,
+      "history_ids": 11,
+      "state_ids": 6,
+      "null_ids": 1,
+      "total_ids": 18,
+      "pool_id_bytes": 37896192,
+      "state_bytes": 841728,
+      "components": {
+        "mla_history": 266010624,
+        "indexer_history": 53526528,
+        "draft_history": 97320960,
+        "kda_effective_states": 116158464,
+        "kda_page_padding": 22892544,
+        "kda_unused_layer_slots": 6045696,
+        "kda_id_empty_indexer_draft": 82280448,
+        "history_tail": 0,
+        "null_id": 37896192
+      },
+      "effective_bytes": 533016576,
+      "overhead_bytes": 149114880,
+      "pool_bytes": 682131456,
+      "pool_mib": 650.53125
+    },
+    {
+      "dcp_rank": 1,
+      "local_history_tokens": 16896,
+      "history_ids": 11,
+      "state_ids": 6,
+      "null_ids": 1,
+      "total_ids": 18,
+      "pool_id_bytes": 37896192,
+      "state_bytes": 841728,
+      "components": {
+        "mla_history": 266010624,
+        "indexer_history": 53526528,
+        "draft_history": 97320960,
+        "kda_effective_states": 116158464,
+        "kda_page_padding": 22892544,
+        "kda_unused_layer_slots": 6045696,
+        "kda_id_empty_indexer_draft": 82280448,
+        "history_tail": 0,
+        "null_id": 37896192
+      },
+      "effective_bytes": 533016576,
+      "overhead_bytes": 149114880,
+      "pool_bytes": 682131456,
+      "pool_mib": 650.53125
+    },
+    {
+      "dcp_rank": 2,
+      "local_history_tokens": 16896,
+      "history_ids": 11,
+      "state_ids": 6,
+      "null_ids": 1,
+      "total_ids": 18,
+      "pool_id_bytes": 37896192,
+      "state_bytes": 841728,
+      "components": {
+        "mla_history": 266010624,
+        "indexer_history": 53526528,
+        "draft_history": 97320960,
+        "kda_effective_states": 116158464,
+        "kda_page_padding": 22892544,
+        "kda_unused_layer_slots": 6045696,
+        "kda_id_empty_indexer_draft": 82280448,
+        "history_tail": 0,
+        "null_id": 37896192
+      },
+      "effective_bytes": 533016576,
+      "overhead_bytes": 149114880,
+      "pool_bytes": 682131456,
+      "pool_mib": 650.53125
+    },
+    {
+      "dcp_rank": 3,
+      "local_history_tokens": 16896,
+      "history_ids": 11,
+      "state_ids": 6,
+      "null_ids": 1,
+      "total_ids": 18,
+      "pool_id_bytes": 37896192,
+      "state_bytes": 841728,
+      "components": {
+        "mla_history": 266010624,
+        "indexer_history": 53526528,
+        "draft_history": 97320960,
+        "kda_effective_states": 116158464,
+        "kda_page_padding": 22892544,
+        "kda_unused_layer_slots": 6045696,
+        "kda_id_empty_indexer_draft": 82280448,
+        "history_tail": 0,
+        "null_id": 37896192
+      },
+      "effective_bytes": 533016576,
+      "overhead_bytes": 149114880,
+      "pool_bytes": 682131456,
+      "pool_mib": 650.53125
+    },
+    {
+      "dcp_rank": 4,
+      "local_history_tokens": 16128,
+      "history_ids": 11,
+      "state_ids": 6,
+      "null_ids": 1,
+      "total_ids": 18,
+      "pool_id_bytes": 37896192,
+      "state_bytes": 841728,
+      "components": {
+        "mla_history": 253919232,
+        "indexer_history": 51093504,
+        "draft_history": 92897280,
+        "kda_effective_states": 116158464,
+        "kda_page_padding": 22892544,
+        "kda_unused_layer_slots": 6045696,
+        "kda_id_empty_indexer_draft": 82280448,
+        "history_tail": 18948096,
+        "null_id": 37896192
+      },
+      "effective_bytes": 514068480,
+      "overhead_bytes": 168062976,
+      "pool_bytes": 682131456,
+      "pool_mib": 650.53125
+    },
+    {
+      "dcp_rank": 5,
+      "local_history_tokens": 16128,
+      "history_ids": 11,
+      "state_ids": 6,
+      "null_ids": 1,
+      "total_ids": 18,
+      "pool_id_bytes": 37896192,
+      "state_bytes": 841728,
+      "components": {
+        "mla_history": 253919232,
+        "indexer_history": 51093504,
+        "draft_history": 92897280,
+        "kda_effective_states": 116158464,
+        "kda_page_padding": 22892544,
+        "kda_unused_layer_slots": 6045696,
+        "kda_id_empty_indexer_draft": 82280448,
+        "history_tail": 18948096,
+        "null_id": 37896192
+      },
+      "effective_bytes": 514068480,
+      "overhead_bytes": 168062976,
+      "pool_bytes": 682131456,
+      "pool_mib": 650.53125
+    },
+    {
+      "dcp_rank": 6,
+      "local_history_tokens": 16128,
+      "history_ids": 11,
+      "state_ids": 6,
+      "null_ids": 1,
+      "total_ids": 18,
+      "pool_id_bytes": 37896192,
+      "state_bytes": 841728,
+      "components": {
+        "mla_history": 253919232,
+        "indexer_history": 51093504,
+        "draft_history": 92897280,
+        "kda_effective_states": 116158464,
+        "kda_page_padding": 22892544,
+        "kda_unused_layer_slots": 6045696,
+        "kda_id_empty_indexer_draft": 82280448,
+        "history_tail": 18948096,
+        "null_id": 37896192
+      },
+      "effective_bytes": 514068480,
+      "overhead_bytes": 168062976,
+      "pool_bytes": 682131456,
+      "pool_mib": 650.53125
+    },
+    {
+      "dcp_rank": 7,
+      "local_history_tokens": 16128,
+      "history_ids": 11,
+      "state_ids": 6,
+      "null_ids": 1,
+      "total_ids": 18,
+      "pool_id_bytes": 37896192,
+      "state_bytes": 841728,
+      "components": {
+        "mla_history": 253919232,
+        "indexer_history": 51093504,
+        "draft_history": 92897280,
+        "kda_effective_states": 116158464,
+        "kda_page_padding": 22892544,
+        "kda_unused_layer_slots": 6045696,
+        "kda_id_empty_indexer_draft": 82280448,
+        "history_tail": 18948096,
+        "null_id": 37896192
+      },
+      "effective_bytes": 514068480,
+      "overhead_bytes": 168062976,
+      "pool_bytes": 682131456,
+      "pool_mib": 650.53125
+    }
+  ],
+  "workload_example": {
+    "scope": "Illustrative per-card quotas using steady decode occupancy. Histories are private; null is reserved separately.",
+    "short_request": {
+      "input_tokens": 11264,
+      "output_budget_tokens": 1024,
+      "total_tokens": 12288,
+      "history_ids": 1,
+      "state_ids": 3,
+      "private_ids": 4
+    },
+    "long_request": {
+      "input_tokens": 131072,
+      "output_budget_tokens": 1024,
+      "history_ids": 11,
+      "state_ids": 3,
+      "private_ids": 14
+    },
+    "fixed_quotas_for_one_long_plus_one_short": {
+      "history_ids": 12,
+      "state_ids": 6,
+      "usable_ids": 18
+    },
+    "two_short_requests": {
+      "history_ids": 2,
+      "state_ids": 6,
+      "fixed_history_free_ids": 10,
+      "fixed_state_free_ids": 0
+    },
+    "three_short_requests": {
+      "history_ids": 3,
+      "state_ids": 9,
+      "private_ids": 12,
+      "fits_fixed_quotas": false,
+      "fits_shared_pool": true,
+      "shared_free_ids": 6
+    }
+  }
+}

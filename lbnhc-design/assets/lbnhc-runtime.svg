@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="700" viewBox="0 0 1920 700"><rect width="1920" height="700" fill="#f7f9fc"/>
+<text x="64" y="54" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="22" font-weight="400" fill="#52647b">KIMI K3.1  /  LBNHC DESIGN</text>
+<text x="64" y="128" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="43" font-weight="700" fill="#14233b">缓存视图与本轮地址信息，在算子处汇合</text>
+<text x="64" y="178" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="25" font-weight="400" fill="#52647b">上路在缓存初始化时准备，下路随推理轮次更新；布局决定数据如何存放，地址信息决定当前访问哪些位置。</text>
+<line x1="64" y1="202" x2="1856" y2="202" stroke="#d8e0eb" stroke-width="2"/>
+<rect x="64" y="255" width="500" height="86" fill="#dceaff"/>
+<text x="314.0" y="309.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="26" font-weight="400" fill="#14233b">初始化：规划、分配、建立视图</text>
+<line x1="580" y1="298" x2="620" y2="298" stroke="#2563b8" stroke-width="3"/>
+<line x1="620" y1="298" x2="606" y2="289" stroke="#2563b8" stroke-width="3"/>
+<line x1="620" y1="298" x2="606" y2="307" stroke="#2563b8" stroke-width="3"/>
+<rect x="640" y="255" width="580" height="86" fill="#dceaff"/>
+<text x="930.0" y="309.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="26" font-weight="400" fill="#14233b">各层起点、张量形状、页步长</text>
+<line x1="1240" y1="298" x2="1370" y2="298" stroke="#2563b8" stroke-width="3"/>
+<line x1="1370" y1="298" x2="1370" y2="382" stroke="#2563b8" stroke-width="3"/>
+<line x1="1370" y1="382" x2="1440" y2="382" stroke="#2563b8" stroke-width="3"/>
+<line x1="1440" y1="382" x2="1426" y2="373" stroke="#2563b8" stroke-width="3"/>
+<line x1="1440" y1="382" x2="1426" y2="391" stroke="#2563b8" stroke-width="3"/>
+<rect x="1460" y="347" width="396" height="110" fill="#eee4fa"/>
+<text x="1658.0" y="415.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="30" font-weight="400" fill="#14233b">算子读写缓存</text>
+<rect x="64" y="450" width="500" height="86" fill="#d9eee8"/>
+<text x="314.0" y="504.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="26" font-weight="400" fill="#14233b">每轮：整理请求的地址信息</text>
+<line x1="580" y1="493" x2="620" y2="493" stroke="#2563b8" stroke-width="3"/>
+<line x1="620" y1="493" x2="606" y2="484" stroke="#2563b8" stroke-width="3"/>
+<line x1="620" y1="493" x2="606" y2="502" stroke="#2563b8" stroke-width="3"/>
+<rect x="640" y="450" width="580" height="86" fill="#d9eee8"/>
+<text x="930.0" y="504.5" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="27" font-weight="400" fill="#14233b">块表、写入位置、长度</text>
+<line x1="1240" y1="493" x2="1370" y2="493" stroke="#2563b8" stroke-width="3"/>
+<line x1="1370" y1="493" x2="1370" y2="422" stroke="#2563b8" stroke-width="3"/>
+<line x1="1370" y1="422" x2="1440" y2="422" stroke="#2563b8" stroke-width="3"/>
+<line x1="1440" y1="422" x2="1426" y2="413" stroke="#2563b8" stroke-width="3"/>
+<line x1="1440" y1="422" x2="1426" y2="431" stroke="#2563b8" stroke-width="3"/>
+<text x="64" y="590" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="25" font-weight="400" fill="#2563b8">KDA 使用状态页与字段偏移；Attention 使用 token 页。两者各有匹配的视图和地址信息。</text>
+<line x1="64" y1="615" x2="1856" y2="615" stroke="#d8e0eb" stroke-width="2"/>
+<text x="64" y="650" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="21" font-weight="400" fill="#52647b">图示表达职责关系；具体后端还需将请求地址转换为其算子接口使用的编号。</text>
+<text x="64" y="683" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="20" font-weight="400" fill="#52647b">算例：DP4TP8DCP8 / DSpark3，5 层 draft、推测 3 token。参考实现：Ascend faa43c37 / vLLM 4ba787ec。</text></svg>

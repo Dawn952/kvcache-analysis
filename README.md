@@ -2,6 +2,8 @@
 
 直接在浏览器打开 `index.html`。静态页面无需安装依赖，计算在浏览器中完成。
 
+[LBNHC 设计说明](https://dawn952.github.io/kvcache-analysis/lbnhc.html)介绍 Kimi K3.1 的历史与状态缓存如何共用块池，含配图和离线复算附件。
+
 Kimi-K3.1 Pro 在 Ascend 950DT 上可选 `DP4 / DCP8 / TP8` 或 `DP4 / TP8`。「单请求显存」工具展示当前配置的五档估算，输出长度均为 1024 token。可选项按 KDA、DSA、DSpark 分组，可切换 RecoverSSM、MLA dtype、Indexer dtype、DSpark、`spec_num` 和 draft dtype。非默认 dtype 组合按相同分组做容量推算。点表里的占用数字查看分项与公式，点长度档位切换布局图。
 
 机型选择器包含 Atlas 800I A3 的 W4A8 场景。A3 采用公开 1M Decode 模板的 `DP4 / DCP16 / TP16`、`block-size 768` 和 DSpark3，主 MLA 与 Indexer 使用 INT8，draft MLA 使用 BF16。RecoverSSM 默认关闭，打开后的单卡占用按源码推算。

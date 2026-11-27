@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="LBNHC 算例的 Python 复算脚本、输入参数和逐 rank 容量结果。">
+  <title>LBNHC 容量计算附件 · KVCache 对比台</title>
+  <link rel="stylesheet" href="../../style.css?v=36">
+  <link rel="stylesheet" href="../../lbnhc-design/article.css">
+</head>
+<body>
+<main class="design-page">
+  <nav class="design-nav" aria-label="KVCache 对比台">
+    <a href="../../lbnhc.html">LBNHC 设计说明</a>
+    <a href="../../index.html">KVCache 对比台</a>
+  </nav>
+  <article>
+<h1 id="容量计算附件">容量计算附件</h1>
+<p>本附件独立重算《Kimi K3.1 的 LBNHC 缓存布局》中的每卡字节账，包括状态大小、页大小、ID 数、DCP 历史分布、空区和池外验证记录。</p>
+<p>需要 Python 3.8 或更高版本，无第三方依赖。在本目录运行：</p>
+<pre><code class="language-sh">python calculate.py
+</code></pre>
+<p>也可从任意目录指定脚本位置运行；输入文件始终从脚本所在目录读取。输出为 JSON，可与随附的 <a href="capacity.json">capacity.json</a> 对照。</p>
+<ul>
+<li><a href="parameters.json">parameters.json</a>：全部算例输入。每组常态 1 个基础 Block，换页时加 1 个临时 Block，额外投机页和额外 prefill 快照页均为 0。</li>
+<li><a href="calculate.py">calculate.py</a>：仅使用标准库的整数计算。</li>
+<li><a href="capacity.json">capacity.json</a>：<code>ranks</code> 是常态账目，<code>boundary_ranks</code> 是三个 KDA 组同时换页时的账目。两者按 rank 给出整数字节，MiB 按 <code>2^20</code> 换算。</li>
+</ul>
+<p>DP4、TP8、DCP8 共计 32 张卡；输出按每卡计算，不将同一 DP 副本的 TP 与 DCP 卡数相乘。主模型、Indexer、draft 的压缩向量宽度不再除以 TP；KDA heads 按 TP 分片，状态不按 DCP 再分片。</p>
+<h2 id="长短请求组合">长短请求组合</h2>
+<p>输出中的 <code>workload_example</code> 对应正文的共享池图。长请求使用 <code>sequence</code> 中的输入与输出预算；短请求的总长度取一个历史 ID 的全局覆盖量，即 <code>local_page_tokens × dcp</code>，输入长度为总长度减去输出预算。本例为 11K 输入、1K 输出。</p>
+<p>先按一长一短常态需要的 ID 数，分别确定历史与状态的固定配额，再计算两条和三条短请求的常态需求。算例假定历史彼此独立，null 单独保留，换页临时 Block 另计。</p>
+<h2 id="池外验证记录">池外验证记录</h2>
+<p>RecoverSSM 用验证过程中的校正量、key 与 gate 等记录恢复已接受位置的状态；这些记录与 KV 池中的持久 checkpoint 分开计费。</p>
+<p>下表中 R 为预分配请求槽数，H 为本卡 heads 数，Q 为一次验证的位置数，D 为每头维度。一次验证包含 1 个常规解码位置和 3 个 draft 候选位置，因此本例 <code>R=64、H=12、Q=1+3=4、D=128</code>。</p>
+<div class="article-table"><table>
+<thead>
+<tr>
+<th>记录</th>
+<th>形状</th>
+<th>dtype</th>
+<th style="text-align:right">单层、单请求槽字节数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>correction，校正量</td>
+<td><code>[R,H,Q,D]</code></td>
+<td>FP32，4 B/元素</td>
+<td style="text-align:right"><code>12 × 4 × 128 × 4 = 24,576</code></td>
+</tr>
+<tr>
+<td>key_gate，key 与 gate 记录</td>
+<td><code>[R,H,Q,2D]</code></td>
+<td>BF16，2 B/元素</td>
+<td style="text-align:right"><code>12 × 4 × 256 × 2 = 24,576</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>69 层、64 个槽合计 <code>(24,576 + 24,576) × 69 × 64 = 217,055,232 B = 207 MiB/卡</code>，不含记录 metadata。这不是单请求的额外增量，也不随当前活跃请求数自动缩减。</p>
+<h2 id="修改参数时的关系">修改参数时的关系</h2>
+<p><code>alignment_example</code> 展示页长选择的算术；容量始终按 <code>cache.local_page_tokens</code> 填写的实际页长计算。脚本不会把推导结果自动写回实际页长，两者应在核对实现后手动同步。</p>
+<p><code>decode.recover_ssm</code> 记录算例条件。常态状态页数取 <code>base_state_pages</code> 与额外投机页、额外 prefill 快照页之和，换页账目再加 <code>boundary_extra_state_pages</code>。改变恢复方式时，按实现填写实际的额外投机页和 prefill 快照页预算。</p>
+<p>脚本复现的是给定参数的容量计算，不启动推理引擎或执行 NPU 算子。输入声明不同的页格式、状态份数或长度时，需要同时核对其实现约束；脚本接受一组数值不表示推理引擎支持该配置。</p>
+<p>本文未用容量差额推断吞吐或时延。实际服务还需核算权重、graph、工作区、metadata 及额外保留的快照。</p>
+  </article>
+</main>
+</body>
+</html>

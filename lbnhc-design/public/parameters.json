@@ -1,0 +1,29 @@
+{
+  "parallel": {"dp": 4, "tp": 8, "dcp": 8},
+  "sequence": {"input_tokens": 131072, "output_budget_tokens": 1024, "interleave_tokens": 768},
+  "model": {
+    "main_layers": 24,
+    "indexer_layers": 24,
+    "draft_layers": 5,
+    "kda_layers": 69,
+    "global_kda_heads": 96,
+    "kda_head_dim": 128,
+    "conv_kernel_width": 4
+  },
+  "decode": {"speculative_tokens": 3, "recover_ssm": true, "record_capacity": 64},
+  "cache": {
+    "local_page_tokens": 1536,
+    "operator_page_tokens": 128,
+    "mla_bytes_per_token": 656,
+    "indexer_bytes_per_token": 132,
+    "draft_bytes_per_token": 1152,
+    "conv_element_bytes": 2,
+    "recurrent_element_bytes": 4,
+    "base_state_pages": 1,
+    "boundary_extra_state_pages": 1,
+    "extra_speculative_state_pages": 0,
+    "extra_prefill_checkpoint_pages": 0,
+    "null_ids": 1
+  },
+  "alignment_example": {"requested_page_tokens": 768, "generic_mla_bytes_per_token": 576}
+}

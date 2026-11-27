@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="990" viewBox="0 0 1920 990"><rect width="1920" height="990" fill="#f7f9fc"/>
+<text x="64" y="54" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="22" font-weight="400" fill="#52647b">KIMI K3.1  /  LBNHC DESIGN</text>
+<text x="64" y="128" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="43" font-weight="700" fill="#14233b">先看地址：本层各页排完，再进入下一层</text>
+<text x="64" y="178" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="25" font-weight="400" fill="#52647b">上图缩小为两层、三个 ID；颜色突出同一 ID 在不同层的位置。下图使用标准配置，区分全局、本地和算子粒度。</text>
+<line x1="64" y1="202" x2="1856" y2="202" stroke="#d8e0eb" stroke-width="2"/>
+<text x="64" y="264" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="29" font-weight="700" fill="#14233b">层 0 的页区域</text>
+<text x="964" y="264" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="29" font-weight="700" fill="#14233b">层 1 的页区域</text>
+<rect x="64" y="303" width="286" height="96" fill="#dceaff"/>
+<text x="207.0" y="363.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="28" font-weight="400" fill="#14233b">层 0 / ID 0</text>
+<rect x="364" y="303" width="286" height="96" fill="#eee4fa"/>
+<text x="507.0" y="363.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="28" font-weight="400" fill="#14233b">层 0 / ID 1</text>
+<rect x="664" y="303" width="286" height="96" fill="#dceaff"/>
+<text x="807.0" y="363.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="28" font-weight="400" fill="#14233b">层 0 / ID 2</text>
+<rect x="964" y="303" width="286" height="96" fill="#d9eee8"/>
+<text x="1107.0" y="363.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="28" font-weight="400" fill="#14233b">层 1 / ID 0</text>
+<rect x="1264" y="303" width="286" height="96" fill="#eee4fa"/>
+<text x="1407.0" y="363.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="28" font-weight="400" fill="#14233b">层 1 / ID 1</text>
+<rect x="1564" y="303" width="286" height="96" fill="#d9eee8"/>
+<text x="1707.0" y="363.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="28" font-weight="400" fill="#14233b">层 1 / ID 2</text>
+<line x1="64" y1="435" x2="1850" y2="435" stroke="#2563b8" stroke-width="3"/>
+<line x1="1850" y1="435" x2="1836" y2="426" stroke="#2563b8" stroke-width="3"/>
+<line x1="1850" y1="435" x2="1836" y2="444" stroke="#2563b8" stroke-width="3"/>
+<text x="64" y="486" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="27" font-weight="400" fill="#2563b8">地址递增；一次分配 ID 1，使用两处紫色页。同一个 ID 对应的页不必相邻。</text>
+<text x="64" y="582" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="700" fill="#14233b">同一片内存，两种页粒度</text>
+<rect x="64" y="620" width="460" height="90" fill="#d9eee8"/>
+<text x="294.0" y="676.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="26" font-weight="400" fill="#14233b">DCP8 合计：12288 token</text>
+<line x1="542" y1="665" x2="600" y2="665" stroke="#2563b8" stroke-width="3"/>
+<line x1="600" y1="665" x2="586" y2="656" stroke="#2563b8" stroke-width="3"/>
+<line x1="600" y1="665" x2="586" y2="674" stroke="#2563b8" stroke-width="3"/>
+<rect x="620" y="620" width="480" height="90" fill="#dceaff"/>
+<text x="860.0" y="676.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="26" font-weight="400" fill="#14233b">本卡管理页：1536 token</text>
+<line x1="1120" y1="665" x2="1180" y2="665" stroke="#2563b8" stroke-width="3"/>
+<line x1="1180" y1="665" x2="1166" y2="656" stroke="#2563b8" stroke-width="3"/>
+<line x1="1180" y1="665" x2="1166" y2="674" stroke="#2563b8" stroke-width="3"/>
+<rect x="1200" y="620" width="656" height="90" fill="#fff0d8"/>
+<text x="1528.0" y="676.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="26" font-weight="400" fill="#14233b">12 个算子页，每页 128 token</text>
+<text x="560" y="757" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#52647b">取其中一张卡</text>
+<text x="1430" y="757" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#52647b">建立张量视图，不复制缓存</text>
+<text x="64" y="847" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="27" font-weight="400" fill="#2563b8">页长用 token 数计，页大小用字节计；不同角色的页大小可以不同。</text>
+<line x1="64" y1="905" x2="1856" y2="905" stroke="#d8e0eb" stroke-width="2"/>
+<text x="64" y="940" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="21" font-weight="400" fill="#52647b">上图表达地址排列；下图表达粒度关系。实际 DCP 历史按 768-token 交错分配，各卡尾块可能不同。</text>
+<text x="64" y="973" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="20" font-weight="400" fill="#52647b">算例：DP4TP8DCP8 / DSpark3，5 层 draft、推测 3 token。参考实现：Ascend faa43c37 / vLLM 4ba787ec。</text></svg>
