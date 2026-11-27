@@ -3,16 +3,19 @@
 
   const Ki = 1024;
   const inputs = [4 * Ki, 16 * Ki, 64 * Ki, 128 * Ki, Ki * Ki - Ki];
-  const defaultBlock = 1536;
+  const defaultBlock = 384;
+  const blockOptions = [defaultBlock, 768, 1536];
   const platforms = {
     a5: { name: 'Ascend 950DT', weights: ['W4A8_MXFP', 'native'], tp: 8, dcp: 8, recover: true,
-      blockOptions: [640, 1024, 1408, defaultBlock], defaultBlock, cacheDtype: 'FP8',
+      cacheDtype: 'FP8',
       dsaDtypes: ['FP8', 'INT8', 'BF16'], draftDtypes: ['BF16', 'FP8'] },
     a3: { name: 'Atlas 800I A3', weights: ['W4A8'], tp: 16, dcp: 16, recover: false,
-      blockOptions: [768], defaultBlock: 768, cacheDtype: 'INT8',
+      cacheDtype: 'INT8',
       dsaDtypes: ['INT8', 'BF16'], draftDtypes: ['BF16', 'INT8'] },
   };
   const mlaKernelBlock = 128;
+  const maxBlock = Ki * Ki;
+  const validBlockSize = (size) => Number.isInteger(size) && size >= mlaKernelBlock && size <= maxBlock && size % mlaKernelBlock === 0;
   const mlaFormats = {
     BF16: { selectBytes: 1152, tokenBytes: 1152, shape: '(512 latent + 64 RoPE) × BF16' },
     FP8: { selectBytes: 576, tokenBytes: 656, shape: '512 × FP8 + 64 × BF16 + 4 × FP32 scale' },
@@ -31,8 +34,8 @@
   const dim = 128;
   const k3Preset = { mlaDraftLayerOptions: [3, 5], gqaDraftLayers: 5, gqaKvHeads: 16, gqaHeadDim: 64 };
   const k3Platforms = {
-    a5: { blockSize: 768, dcpOptions: [1], spec: 3, mlaDraftLayers: 3, maxMlaSpec: 5 },
-    a3: { blockSize: 384, dcpOptions: [16, 1], spec: 7, mlaDraftLayers: 5, maxMlaSpec: 7 },
+    a5: { dcpOptions: [1], spec: 3, mlaDraftLayers: 3, maxMlaSpec: 5 },
+    a3: { dcpOptions: [16, 1], spec: 7, mlaDraftLayers: 5, maxMlaSpec: 7 },
   };
   const instanceNodes = [4, 5, 6, 7, 8];
   const customTpOptions = (platform) => platforms[platform] ? [1, 2, 4, 8, 16, 32] : [];
@@ -60,7 +63,7 @@
 
   function calculate(input, { platform = 'a5', weight = platforms[platform]?.weights[0], dcp, recover, spec,
     customParallel = false, dp = 4, tp = platforms[platform]?.tp, nodes = 8, generation = Ki,
-    requestedBlock = platforms[platform]?.defaultBlock, mlaDtype = platforms[platform]?.cacheDtype,
+    requestedBlock = defaultBlock, mlaDtype = platforms[platform]?.cacheDtype,
     indexDtype = platforms[platform]?.cacheDtype, draftDtype = 'BF16' }) {
     const preset = platforms[platform];
     const validParallel = customParallel
@@ -75,7 +78,7 @@
     }
     if (!Number.isInteger(spec) || spec < 0 || spec > 7) throw new RangeError('spec_num 须为 0 至 7 的整数');
     if (recover && spec === 0) throw new RangeError('RecoverSSM 需要开启 DSpark');
-    if (!preset.blockOptions.includes(requestedBlock)) throw new RangeError('不支持此 block-size 档位');
+    if (!validBlockSize(requestedBlock)) throw new RangeError('请求页大小须为 128 的整数倍且不超过 1M token');
 
     const { heads, recurrent, conv, state } = kdaGeometry(tp, spec);
     const mla = mlaFormats[mlaDtype];
@@ -131,7 +134,7 @@
   }
 
   function calculateK3(input, { platform = 'a5', recover, spec, draftKind = 'mla', customParallel = false,
-    dp = 4, tp = platforms[platform]?.tp, nodes = 8, generation = Ki,
+    dp = 4, tp = platforms[platform]?.tp, nodes = 8, generation = Ki, requestedBlock = defaultBlock,
     dcp = k3Platforms[platform]?.dcpOptions[0], mlaDraftLayerCount = k3Platforms[platform]?.mlaDraftLayers }) {
     const preset = k3Platforms[platform];
     const validParallel = customParallel ? validCustomParallel(platform, dp, tp, dcp, nodes)
@@ -146,7 +149,7 @@
     if (gqa && spec && !gqaFitsK3Page(tp)) throw new RangeError('GQA Draft 页超过 MLA 共用页宽');
     if (gqa && spec && customParallel && !gqaDcpFitsK3(tp, dcp)) throw new RangeError('DCP 超过 GQA Draft 的 KV 头复制比例');
 
-    const requestedBlock = preset.blockSize;
+    if (!validBlockSize(requestedBlock)) throw new RangeError('请求页大小须为 128 的整数倍且不超过 1M token');
     const { heads, conv, recurrent, state } = kdaGeometry(tp, spec);
     const tokenBytes = mlaFormats.BF16.tokenBytes;
     const block = alignBlock(requestedBlock, tokenBytes, state);
@@ -231,7 +234,7 @@
       usedBytes: usedBlocks * bytesPerId };
   }
 
-  const model = { Ki, inputs, defaultBlock, platforms, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup,
+  const model = { Ki, inputs, defaultBlock, blockOptions, maxBlock, validBlockSize, platforms, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup,
     draftLayers, k3Preset, k3Platforms, instanceNodes, customTpOptions, customDcpOptions, validCustomParallel,
     gqaFitsK3Page, gqaDcpFitsK3, calculate, calculateK3, estimateCapacity };
   if (typeof module !== 'undefined') module.exports = model;

@@ -1,6 +1,6 @@
 'use strict';
 
-const { Ki, inputs, defaultBlock, platforms, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup, draftLayers,
+const { Ki, inputs, defaultBlock, blockOptions, maxBlock, validBlockSize, platforms, mlaKernelBlock, mainLayers, stateGroups, layersPerStateGroup, draftLayers,
   k3Preset, k3Platforms, instanceNodes, customTpOptions, customDcpOptions, validCustomParallel, gqaFitsK3Page, gqaDcpFitsK3,
   estimateCapacity,
   calculate: calculateK31, calculateK3 } = KVCache;
@@ -28,6 +28,7 @@ const draftDtype = byId('draft-dtype');
 const draftKinds = Array.from(document.querySelectorAll('input[name="draft-kind"]'));
 const mlaDraftLayers = byId('mla-draft-layers');
 const blockSize = byId('block-size');
+const customBlockSize = byId('custom-block-size');
 const results = byId('results');
 const layout = byId('layout');
 const layoutCaption = byId('layout-caption');
@@ -85,7 +86,8 @@ function geometryEvidence(value, config) {
     if (value.draftInfo?.kind === 'GQA') {
       return { label: config.dcp > 1 ? 'GQA / DCP 结构对照 · 当前草稿组合无法部署' : 'GQA 分组按配置推算' };
     }
-    if (config.platform === 'a3' && config.dcp === 16 && !config.recover && config.spec === 7 && value.draftInfo?.layers === 5) {
+    if (config.platform === 'a3' && config.dcp === 16 && value.requestedBlock === 384 && value.localBlock === 384
+      && !config.recover && config.spec === 7 && value.draftInfo?.layers === 5) {
       return { label: '单卡页宽 384 token · A3 1M Decode 模板',
         url: 'https://docs.vllm.ai/projects/ascend/en/main/tutorials/models/Kimi-K3.html#53-long-context-and-1m-pd-separation-deployment' };
     }
@@ -95,9 +97,9 @@ function geometryEvidence(value, config) {
   if (hasAlternateDtype(config)) return { label: 'dtype 对照 · 部署未验证' };
   const baseline = config.weight === platforms[config.platform].weights[0] && config.dcp === platforms[config.platform].dcp;
   if (baseline && config.spec === 3 && config.recover === platforms[config.platform].recover) {
-    if (config.platform === 'a3') return { label: '单卡页宽参考 A3 模板与源码',
+    if (config.platform === 'a3' && value.requestedBlock === 768 && value.localBlock === 768) return { label: '单卡页宽参考 A3 模板与源码',
       url: 'https://docs.vllm.ai/projects/ascend/en/main/tutorials/models/Kimi-K3.1-Pro.html#long-context-and-1m-pd-separation-deployment' };
-    if (value.requestedBlock === defaultBlock) return { label: '历史启动日志的页宽：传入 768，生效 1536 token / 卡',
+    if (config.platform === 'a5' && value.requestedBlock === 768 && value.localBlock === 1536) return { label: '历史启动日志的页宽：传入 768，生效 1536 token / 卡',
       url: 'https://github.com/Dawn952/kimi-k31-a5-analysis/blob/main/data/memory-dcp-evidence.json' };
   }
   return { label: '当前布局按配置推算' };
@@ -135,7 +137,12 @@ function applySharedParallel(query) {
     if (Array.from(control.options).some(option => option.value === value)) control.value = value;
   };
   setOption(weight, 'weight');
-  setOption(blockSize, 'block');
+  const sharedBlock = Number(query.get('block'));
+  if (validBlockSize(sharedBlock)) {
+    const useCustomBlock = query.get('block-mode') === 'custom' || !blockOptions.includes(sharedBlock);
+    blockSize.value = useCustomBlock ? 'custom' : String(sharedBlock);
+    if (useCustomBlock) customBlockSize.value = String(sharedBlock);
+  }
   setOption(mlaDtype, 'mla');
   setOption(indexDtype, 'index');
   setOption(draftDtype, 'draftdtype');
@@ -174,7 +181,7 @@ function selectPlatform() {
   const platform = hardware.value;
   const k3 = modelChoice.value === 'k3';
   const k3Platform = k3Platforms[platform];
-  const preset = k3 ? { weights: ['W4A8'], blockOptions: [k3Platform.blockSize], defaultBlock: k3Platform.blockSize,
+  const preset = k3 ? { weights: ['W4A8'],
     dsaDtypes: ['BF16'], draftDtypes: ['BF16'], recover: false } : platforms[platform];
   const dcpOptions = k3 ? k3Platform.dcpOptions : platform === 'a5' ? [preset.dcp, 1] : [preset.dcp];
   weight.replaceChildren(...preset.weights.map(value => new Option(weightLabel(value), value)));
@@ -186,8 +193,8 @@ function selectPlatform() {
   customNodes.value = 'auto';
   customTp.replaceChildren(new Option('选择 TP', ''), ...customTpOptions(platform).map(tp => new Option(tp, tp)));
   updateCustomDcp();
-  blockSize.replaceChildren(...preset.blockOptions.map(size => new Option(size, size)));
-  blockSize.value = String(preset.defaultBlock);
+  blockSize.value = String(defaultBlock);
+  customBlockSize.value = '';
   mlaDtype.replaceChildren(...preset.dsaDtypes.map(value => new Option(value, value)));
   indexDtype.replaceChildren(...preset.dsaDtypes.map(value => new Option(value, value)));
   draftDtype.replaceChildren(...preset.draftDtypes.map(value => new Option(value === 'BF16' ? value : `${value}（容量估算）`, value)));
@@ -230,7 +237,12 @@ function render() {
   const gqaDraft = k3 && !mla && draftEnabled;
   const validTopology = validCustomParallel(platform, dp, tp, dcp, nodes);
   const gqaIssue = gqaDraft && ((tp > 0 && !gqaFitsK3Page(tp)) || (dcp > 0 && !gqaDcpFitsK3(tp, dcp)));
-  const pendingScenario = customScenario && (!validTopology || gqaIssue);
+  const useCustomBlock = blockSize.value === 'custom';
+  const requestedBlock = useCustomBlock ? customBlockSize.valueAsNumber : Number(blockSize.value);
+  const validBlock = validBlockSize(requestedBlock);
+  const pendingScenario = !validBlock || (customScenario && (!validTopology || gqaIssue));
+  byId('custom-block-field').hidden = !useCustomBlock;
+  customBlockSize.setAttribute('aria-invalid', String(useCustomBlock && Boolean(customBlockSize.value) && !validBlock));
   byId('custom-parallel').hidden = !customScenario;
   if (!customScenario) presetDcp = dcp;
   const size = byId('custom-parallel-size');
@@ -257,7 +269,7 @@ function render() {
   recover.disabled = !draftEnabled;
   current = { modelId: modelChoice.value, draftKind: kind, mlaDraftLayerCount: Number(mlaDraftLayers.value), platform,
     weight: weight.value, customParallel: customScenario, dp, tp, dcp, nodes, recover: draftEnabled && recover.checked,
-    spec: draftEnabled ? Number(spec.value) : 0, requestedBlock: Number(blockSize.value),
+    spec: draftEnabled ? Number(spec.value) : 0, requestedBlock,
     mlaDtype: mlaDtype.value, indexDtype: indexDtype.value, draftDtype: draftDtype.value };
   byId('native-weight-note').hidden = current.weight !== 'native';
   byId('dtype-note').hidden = k3 || !hasAlternateDtype(current);
@@ -265,7 +277,8 @@ function render() {
   const customNote = byId('custom-scenario-note');
   customNote.hidden = !pendingScenario;
   if (pendingScenario) {
-    if (customDp.value && (!Number.isSafeInteger(dp) || dp < 1)) customNote.textContent = 'DP 须为正整数。';
+    if (!validBlock) customNote.textContent = `请输入 ${mlaKernelBlock}–${fmt.format(maxBlock)} token 的请求页大小，须为 ${mlaKernelBlock} 的整数倍。`;
+    else if (customDp.value && (!Number.isSafeInteger(dp) || dp < 1)) customNote.textContent = 'DP 须为正整数。';
     else if (dp > 0 && tp > 0 && dp > Math.floor(nodes * cardsPerNode / tp)) customNote.textContent = `DP × TP 超过 ${nodes} 机的 ${nodes * cardsPerNode} 卡上限。`;
     else if (gqaIssue) customNote.textContent = 'GQA Draft 须 TP ≥ 4。TP ≤ 16 时仅支持 DCP1，TP32 可选 DCP1 或 DCP2。';
     else customNote.textContent = '填写 DP、TP 和 DCP 后显示估算。';
@@ -367,7 +380,7 @@ function renderBlockSize({ requestedBlock, localBlock, upstreamQuantumBytes, ali
   blockAdjustment.innerHTML = `
     <p><strong>启动时选块。</strong> ${current.mlaDtype} MLA 按 ${bytesPerToken} B/token 计算。${requestedBlock} token 只提供 ${fmt.format(upstreamQuantumBytes)} B，KDA 单层状态需要 ${fmt.format(pages.state)} B。${doubled}取最小够用的整数倍 ${requestedBlock} × ${alignmentMultiple} = ${localBlock} token，对应 ${fmt.format(upstreamQuantumBytes * alignmentMultiple)} B。</p>
     <p><strong>分配物理页。</strong> ${current.mlaDtype === 'BF16' ? '按同样的字节宽度' : '计入 BF16 RoPE 和 scale 后'}，MLA 页宽为 ${localBlock} × ${pages.main / localBlock} B = ${fmt.format(pages.main)} B。KDA 按此页宽对齐。</p>
-    <p class="sources"><a href="https://github.com/vllm-project/vllm/blob/4ba787ec9959e566d3b587a796dff07673324da5/vllm/platforms/interface.py#L1076-L1128">vLLM 选块源码</a><a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/platform.py#L470-L489">Ascend 物理页宽源码</a></p>`;
+    <p class="sources"><a href="https://github.com/vllm-project/vllm/blob/4ba787ec9959e566d3b587a796dff07673324da5/vllm/platforms/interface.py#L1076-L1128">vLLM 选块源码</a>${current.modelId === 'k31' ? '<a href="https://github.com/Dawn952/vllm-ascend/blob/3634a7eae94897d1a7b14d00807323e5af6b4a04/vllm_ascend/platform.py#L470-L489">Ascend 物理页宽源码</a>' : ''}</p>`;
   return `${requestedBlock} → <button type="button" class="explanation-toggle" aria-controls="block-adjustment" aria-expanded="${!blockAdjustment.hidden}">${effective}</button>`;
 }
 
@@ -569,9 +582,10 @@ function renderLayoutVisual(value, focusBlock = false) {
 function renderBlockZoom({ pages, localBlock, draftInfo }) {
   const tiles = localBlock / mlaKernelBlock;
   const tileBytes = pages.main / tiles;
-  const mlaParts = Array.from({ length: tiles }, (_, index) => ({
-    label: `Kernel 小块 ${index + 1}`, bytes: tileBytes, css: 'mla', text: index + 1,
-  }));
+  const tile = (number) => ({ label: `Kernel 小块 ${number}`, bytes: tileBytes, css: 'mla', text: number });
+  const mlaParts = tiles <= 24 ? Array.from({ length: tiles }, (_, index) => tile(index + 1))
+    : [tile(1), tile(2), { label: `Kernel 小块 3–${tiles - 2}`, bytes: (tiles - 4) * tileBytes, css: 'mla', text: '…' },
+      tile(tiles - 1), tile(tiles)];
   const kdaParts = [
     { label: '卷积历史（Conv）', bytes: pages.conv, css: 'conv' },
     { label: '递推状态（Recurrent）', bytes: pages.recurrent, css: 'kda' },
@@ -749,6 +763,7 @@ customTp.addEventListener('change', () => {
   render();
 });
 customDcp.addEventListener('change', render);
+customBlockSize.addEventListener('input', render);
 for (const control of [customLength, customGeneration]) control.addEventListener('input', () => {
   if (requestAt(customRow)) selected = customRow;
   render();
@@ -771,6 +786,7 @@ byId('copy-parallel-link').addEventListener('click', async () => {
     draft: Number(draft.checked), recover: Number(recover.checked), spec: spec.value,
     kind: current.draftKind, layers: current.mlaDraftLayerCount,
   }).toString();
+  if (blockSize.value === 'custom') url.searchParams.set('block-mode', 'custom');
   const custom = requestAt(customRow);
   if (custom) {
     url.searchParams.set('length', custom.limit);

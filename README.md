@@ -12,7 +12,7 @@ Kimi-K3 按 `LBNHC` 展示 BF16 KV。950DT 场景采用 DP4 / TP8、768 token / 
 
 「单请求显存」与「请求容量」是两个独立的计算窗口，共用部署配置与当前请求长度。可填入 1–1,048,576 token 的总长度和其中的输出长度。容量工具输入每卡 KVCache、共享前缀比例和不同前缀数，给出每副本与整个实例的理论同时驻留条数。只有完整历史块计入共享，KDA 状态和独立 GQA Draft 块按请求计。
 
-950DT 的 `--block-size` 可在 640、1024、1408 和 1536 之间切换，默认传入 1536。页面按固定版上游选块规则推算生效值，再按 Ascend 打包后的页宽计算显存。1536 token 的 DCP8 页几何有 A5 Atlas 历史日志。A3 的 paired 页几何按公开模板及源码复核。
+`--block-size` 默认传入 384，可选 768、1536 或自定义（128 的倍数，上限 1M token）。页面按固定版上游选块规则推算生效值，再按 Ascend 打包后的页宽计算显存。1536 token 的 DCP8 页几何有 A5 Atlas 历史日志。A3 的 paired 页几何按公开模板及源码复核。
 
 每档以输入与输出长度之和设置 `max_model_len`。投机 lookahead 受 `KVCacheManager.allocate_slots` 的模型上限截断。KDA 估算单请求稳态 Decode 的驻留，每组计 1 个运行状态块，RecoverSSM 关闭时再加 `spec_num` 个投机状态块。跨块切换时的临时重叠、额外 Prefill checkpoint、历史驻留、全池 null ID、图内存、权重和引擎级 RecoverSSM records 另计。
 

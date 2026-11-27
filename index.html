@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kimi-K3.1 Pro KVCache 对比台</title>
-<link rel="stylesheet" href="style.css?v=35">
+<link rel="stylesheet" href="style.css?v=36">
 <main>
   <header>
     <h1 id="page-title">Kimi-K3.1 Pro KVCache 对比台</h1>
@@ -16,7 +16,10 @@
       <label>机型<select id="hardware"><option value="a5">Ascend 950DT</option><option value="a3">Atlas 800I A3</option></select></label>
       <label>权重<select id="weight"><option>W4A8_MXFP</option></select></label>
       <label>并行策略<select id="scenario"><option value="8">DP4 / DCP8 / TP8</option><option value="1">DP4 / TP8</option><option value="custom">自定义</option></select></label>
-      <label for="block-size" title="--block-size">请求页大小（token）<select id="block-size"><option>640</option><option>1024</option><option>1408</option><option selected>1536</option></select></label>
+      <div class="block-setting">
+        <label for="block-size" title="--block-size">请求页大小（token）<select id="block-size"><option selected>384</option><option>768</option><option>1536</option><option value="custom">自定义</option></select></label>
+        <label id="custom-block-field" hidden>自定义页大小（token）<input id="custom-block-size" type="number" min="128" max="1048576" step="128" inputmode="numeric" placeholder="填写 128 的倍数"></label>
+      </div>
     </div>
     <fieldset id="custom-parallel" class="custom-parallel" hidden>
       <legend>自定义并行策略</legend>
@@ -171,6 +174,6 @@
   <div class="dialog-head"><div><h2 id="detail-title">占用明细</h2><p id="detail-caption" class="caption"></p></div><form method="dialog"><button>关闭</button></form></div>
   <div id="detail-rows"></div>
 </dialog>
-<script src="model.js?v=23" defer></script>
-<script src="app.js?v=40" defer></script>
+<script src="model.js?v=24" defer></script>
+<script src="app.js?v=41" defer></script>
 </html>
