@@ -16,7 +16,7 @@
 .design-page article > h2 { margin: 2.5rem 0 .85rem; }
 .design-page article > h3 { margin: 1.75rem 0 .5rem; }
 .design-page p { line-height: 1.8; }
-.design-page img { display: block; max-width: 100%; height: auto; margin: 1.5rem auto; border-radius: .4rem; }
+.design-page img { display: block; max-width: 100%; height: auto; margin: 1.5rem auto; border-radius: .4rem; outline: 1px solid var(--line); }
 .design-page .article-table { overflow-x: auto; }
 .design-page table { width: 100%; border-collapse: collapse; font-size: .95rem; }
 .design-page th, .design-page td { padding: .6rem .65rem; border-bottom: 1px solid var(--line); text-align: left; }

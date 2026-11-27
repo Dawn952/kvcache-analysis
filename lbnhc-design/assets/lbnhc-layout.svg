@@ -1,79 +1,79 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080"><rect width="1920" height="1080" fill="#f7f9fc"/>
-<text x="64" y="54" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="22" font-weight="400" fill="#52647b">KIMI K3.1  /  LBNHC DESIGN</text>
-<text x="64" y="128" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="43" font-weight="700" fill="#14233b">一个 ID 在各层对应哪些位置</text>
-<text x="64" y="178" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="25" font-weight="400" fill="#52647b">每卡一个 ID 对应 24 个 MLA 页槽、24 份 Indexer 页和 5 个 draft 页。</text>
-<line x1="64" y1="202" x2="1856" y2="202" stroke="#d8e0eb" stroke-width="2"/>
-<text x="64" y="276" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#2563b8">每列 KDA 画一个层组的一套状态，共 23 份单层 checkpoint。</text>
-<text x="465" y="365" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="34" font-weight="700" fill="#14233b">历史 ID h</text>
-<text x="769" y="365" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="34" font-weight="700" fill="#14233b">KDA 组 1 / a</text>
-<text x="1073" y="365" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="34" font-weight="700" fill="#14233b">KDA 组 2 / b</text>
-<text x="1377" y="365" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="34" font-weight="700" fill="#14233b">KDA 组 3 / c</text>
-<text x="1681" y="365" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="34" font-weight="700" fill="#14233b">null ID</text>
-<text x="64" y="442" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="35" font-weight="700" fill="#14233b">MLA 槽 0</text>
-<rect x="320" y="389" width="290" height="76" fill="#dceaff"/>
-<text x="465.0" y="441.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">历史 MLA</text>
-<rect x="624" y="389" width="290" height="76" fill="#eee4fa"/>
-<rect x="866.2560975609756" y="389" width="47.743902439024396" height="76" fill="#aebcd0"/>
-<text x="745.1280487804878" y="439" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">KDA 状态</text>
-<rect x="928" y="389" width="290" height="76" fill="#eee4fa"/>
-<rect x="1170.2560975609756" y="389" width="47.743902439024396" height="76" fill="#aebcd0"/>
-<text x="1049.128048780488" y="439" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">KDA 状态</text>
-<rect x="1232" y="389" width="290" height="76" fill="#eee4fa"/>
-<rect x="1474.2560975609756" y="389" width="47.743902439024396" height="76" fill="#aebcd0"/>
-<text x="1353.128048780488" y="439" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">KDA 状态</text>
-<rect x="1536" y="389" width="290" height="76" fill="#e8edf4"/>
-<text x="1681.0" y="441.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">全池预留</text>
-<text x="64" y="552" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="35" font-weight="700" fill="#14233b">… MLA 槽 22</text>
-<rect x="320" y="499" width="290" height="76" fill="#dceaff"/>
-<text x="465.0" y="551.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">历史 MLA</text>
-<rect x="624" y="499" width="290" height="76" fill="#eee4fa"/>
-<rect x="866.2560975609756" y="499" width="47.743902439024396" height="76" fill="#aebcd0"/>
-<text x="745.1280487804878" y="549" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">KDA 状态</text>
-<rect x="928" y="499" width="290" height="76" fill="#eee4fa"/>
-<rect x="1170.2560975609756" y="499" width="47.743902439024396" height="76" fill="#aebcd0"/>
-<text x="1049.128048780488" y="549" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">KDA 状态</text>
-<rect x="1232" y="499" width="290" height="76" fill="#eee4fa"/>
-<rect x="1474.2560975609756" y="499" width="47.743902439024396" height="76" fill="#aebcd0"/>
-<text x="1353.128048780488" y="549" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">KDA 状态</text>
-<rect x="1536" y="499" width="290" height="76" fill="#e8edf4"/>
-<text x="1681.0" y="551.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">全池预留</text>
-<text x="64" y="662" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="35" font-weight="700" fill="#14233b">MLA 槽 23</text>
-<rect x="320" y="609" width="290" height="76" fill="#dceaff"/>
-<text x="465.0" y="661.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">历史 MLA</text>
-<rect x="624" y="609" width="290" height="76" fill="#e8edf4"/>
-<text x="769.0" y="661.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">空槽</text>
-<rect x="928" y="609" width="290" height="76" fill="#e8edf4"/>
-<text x="1073.0" y="661.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">空槽</text>
-<rect x="1232" y="609" width="290" height="76" fill="#e8edf4"/>
-<text x="1377.0" y="661.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">空槽</text>
-<rect x="1536" y="609" width="290" height="76" fill="#e8edf4"/>
-<text x="1681.0" y="661.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">全池预留</text>
-<text x="64" y="772" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="35" font-weight="700" fill="#14233b">Indexer 各层</text>
-<rect x="320" y="719" width="290" height="76" fill="#d9eee8"/>
-<text x="465.0" y="771.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">历史 K / scale</text>
-<rect x="624" y="719" width="290" height="76" fill="#e8edf4"/>
-<text x="769.0" y="771.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">未使用</text>
-<rect x="928" y="719" width="290" height="76" fill="#e8edf4"/>
-<text x="1073.0" y="771.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">未使用</text>
-<rect x="1232" y="719" width="290" height="76" fill="#e8edf4"/>
-<text x="1377.0" y="771.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">未使用</text>
-<rect x="1536" y="719" width="290" height="76" fill="#e8edf4"/>
-<text x="1681.0" y="771.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">全池预留</text>
-<text x="64" y="882" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="35" font-weight="700" fill="#14233b">draft 各层</text>
-<rect x="320" y="829" width="290" height="76" fill="#fff0d8"/>
-<text x="465.0" y="881.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">draft 历史</text>
-<rect x="624" y="829" width="290" height="76" fill="#e8edf4"/>
-<text x="769.0" y="881.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">未使用</text>
-<rect x="928" y="829" width="290" height="76" fill="#e8edf4"/>
-<text x="1073.0" y="881.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">未使用</text>
-<rect x="1232" y="829" width="290" height="76" fill="#e8edf4"/>
-<text x="1377.0" y="881.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">未使用</text>
-<rect x="1536" y="829" width="290" height="76" fill="#e8edf4"/>
-<text x="1681.0" y="881.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">全池预留</text>
-<rect x="64" y="938" width="42" height="30" fill="#aebcd0"/>
-<text x="120" y="966" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">页尾 padding</text>
-<rect x="456" y="938" width="42" height="30" fill="#e8edf4"/>
-<text x="512" y="966" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#14233b">空槽、空页或 null</text>
-<line x1="64" y1="995" x2="1856" y2="995" stroke="#d8e0eb" stroke-width="2"/>
-<text x="64" y="1030" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="21" font-weight="400" fill="#52647b">各列按 ID 的用途排列。</text>
-<text x="64" y="1063" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="20" font-weight="400" fill="#52647b">算例：DP4TP8DCP8 / DSpark3，5 层 draft、推测 3 token。参考实现：Ascend faa43c37 / vLLM 4ba787ec。</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080"><rect width="1920" height="1080" fill="#111b2b"/>
+<text x="64" y="54" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="22" font-weight="400" fill="#a8b8cc">KIMI K3.1  /  LBNHC DESIGN</text>
+<text x="64" y="128" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="43" font-weight="700" fill="#eef5ff">一个 ID 在各层对应哪些位置</text>
+<text x="64" y="178" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="25" font-weight="400" fill="#a8b8cc">每卡一个 ID 对应 24 个 MLA 页槽、24 份 Indexer 页和 5 个 draft 页。</text>
+<line x1="64" y1="202" x2="1856" y2="202" stroke="#26364c" stroke-width="2"/>
+<text x="64" y="276" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#79d8fa">每列 KDA 画一个层组的一套状态，共 23 份单层 checkpoint。</text>
+<text x="465" y="365" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="34" font-weight="700" fill="#eef5ff">历史 ID h</text>
+<text x="769" y="365" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="34" font-weight="700" fill="#eef5ff">KDA 组 1 / a</text>
+<text x="1073" y="365" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="34" font-weight="700" fill="#eef5ff">KDA 组 2 / b</text>
+<text x="1377" y="365" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="34" font-weight="700" fill="#eef5ff">KDA 组 3 / c</text>
+<text x="1681" y="365" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="34" font-weight="700" fill="#eef5ff">null ID</text>
+<text x="64" y="442" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="35" font-weight="700" fill="#eef5ff">MLA 槽 0</text>
+<rect x="320" y="389" width="290" height="76" fill="#1b405a"/>
+<text x="465.0" y="441.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">历史 MLA</text>
+<rect x="624" y="389" width="290" height="76" fill="#205046"/>
+<rect x="866.2560975609756" y="389" width="47.743902439024396" height="76" fill="#4e6580"/>
+<text x="745.1280487804878" y="439" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">KDA 状态</text>
+<rect x="928" y="389" width="290" height="76" fill="#205046"/>
+<rect x="1170.2560975609756" y="389" width="47.743902439024396" height="76" fill="#4e6580"/>
+<text x="1049.128048780488" y="439" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">KDA 状态</text>
+<rect x="1232" y="389" width="290" height="76" fill="#205046"/>
+<rect x="1474.2560975609756" y="389" width="47.743902439024396" height="76" fill="#4e6580"/>
+<text x="1353.128048780488" y="439" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">KDA 状态</text>
+<rect x="1536" y="389" width="290" height="76" fill="#1c2a3e"/>
+<text x="1681.0" y="441.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">全池预留</text>
+<text x="64" y="552" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="35" font-weight="700" fill="#eef5ff">… MLA 槽 22</text>
+<rect x="320" y="499" width="290" height="76" fill="#1b405a"/>
+<text x="465.0" y="551.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">历史 MLA</text>
+<rect x="624" y="499" width="290" height="76" fill="#205046"/>
+<rect x="866.2560975609756" y="499" width="47.743902439024396" height="76" fill="#4e6580"/>
+<text x="745.1280487804878" y="549" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">KDA 状态</text>
+<rect x="928" y="499" width="290" height="76" fill="#205046"/>
+<rect x="1170.2560975609756" y="499" width="47.743902439024396" height="76" fill="#4e6580"/>
+<text x="1049.128048780488" y="549" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">KDA 状态</text>
+<rect x="1232" y="499" width="290" height="76" fill="#205046"/>
+<rect x="1474.2560975609756" y="499" width="47.743902439024396" height="76" fill="#4e6580"/>
+<text x="1353.128048780488" y="549" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">KDA 状态</text>
+<rect x="1536" y="499" width="290" height="76" fill="#1c2a3e"/>
+<text x="1681.0" y="551.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">全池预留</text>
+<text x="64" y="662" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="35" font-weight="700" fill="#eef5ff">MLA 槽 23</text>
+<rect x="320" y="609" width="290" height="76" fill="#1b405a"/>
+<text x="465.0" y="661.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">历史 MLA</text>
+<rect x="624" y="609" width="290" height="76" fill="#1c2a3e"/>
+<text x="769.0" y="661.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">空槽</text>
+<rect x="928" y="609" width="290" height="76" fill="#1c2a3e"/>
+<text x="1073.0" y="661.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">空槽</text>
+<rect x="1232" y="609" width="290" height="76" fill="#1c2a3e"/>
+<text x="1377.0" y="661.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">空槽</text>
+<rect x="1536" y="609" width="290" height="76" fill="#1c2a3e"/>
+<text x="1681.0" y="661.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">全池预留</text>
+<text x="64" y="772" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="35" font-weight="700" fill="#eef5ff">Indexer 各层</text>
+<rect x="320" y="719" width="290" height="76" fill="#2b365c"/>
+<text x="465.0" y="771.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">历史 K / scale</text>
+<rect x="624" y="719" width="290" height="76" fill="#1c2a3e"/>
+<text x="769.0" y="771.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">未使用</text>
+<rect x="928" y="719" width="290" height="76" fill="#1c2a3e"/>
+<text x="1073.0" y="771.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">未使用</text>
+<rect x="1232" y="719" width="290" height="76" fill="#1c2a3e"/>
+<text x="1377.0" y="771.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">未使用</text>
+<rect x="1536" y="719" width="290" height="76" fill="#1c2a3e"/>
+<text x="1681.0" y="771.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">全池预留</text>
+<text x="64" y="882" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="35" font-weight="700" fill="#eef5ff">draft 各层</text>
+<rect x="320" y="829" width="290" height="76" fill="#47365b"/>
+<text x="465.0" y="881.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">draft 历史</text>
+<rect x="624" y="829" width="290" height="76" fill="#1c2a3e"/>
+<text x="769.0" y="881.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">未使用</text>
+<rect x="928" y="829" width="290" height="76" fill="#1c2a3e"/>
+<text x="1073.0" y="881.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">未使用</text>
+<rect x="1232" y="829" width="290" height="76" fill="#1c2a3e"/>
+<text x="1377.0" y="881.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">未使用</text>
+<rect x="1536" y="829" width="290" height="76" fill="#1c2a3e"/>
+<text x="1681.0" y="881.0" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">全池预留</text>
+<rect x="64" y="938" width="42" height="30" fill="#4e6580"/>
+<text x="120" y="966" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">页尾 padding</text>
+<rect x="456" y="938" width="42" height="30" fill="#1c2a3e" stroke="#26364c" stroke-width="3"/>
+<text x="512" y="966" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="32" font-weight="400" fill="#eef5ff">空槽、空页或 null</text>
+<line x1="64" y1="995" x2="1856" y2="995" stroke="#26364c" stroke-width="2"/>
+<text x="64" y="1030" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="21" font-weight="400" fill="#a8b8cc">各列按 ID 的用途排列。</text>
+<text x="64" y="1063" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="20" font-weight="400" fill="#a8b8cc">算例：DP4TP8DCP8 / DSpark3，5 层 draft、推测 3 token。参考实现：Ascend faa43c37 / vLLM 4ba787ec。</text></svg>

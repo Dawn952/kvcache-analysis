@@ -6,13 +6,13 @@
   <meta name="description" content="Kimi K3.1 的历史与 KDA 状态缓存如何共用空闲块池，以及页槽复用的空间成本。">
   <title>Kimi K3.1 的 LBNHC 缓存布局 · KVCache 对比台</title>
   <link rel="stylesheet" href="style.css?v=36">
-  <link rel="stylesheet" href="lbnhc-design/article.css">
+  <link rel="stylesheet" href="lbnhc-design/article.css?v=e03c120b27f4">
 </head>
 <body>
 <main class="design-page">
   <nav class="design-nav" aria-label="KVCache 对比台">
     <a href="index.html">KVCache 对比台</a>
-    <a href="lbnhc-design/lbnhc-public.zip">下载完整图文和计算附件</a>
+    <a href="lbnhc-design/lbnhc-public.zip?v=e03c120b27f4">下载完整图文和计算附件</a>
   </nav>
   <article>
 <h1 id="kimi-k31-的-lbnhc-缓存布局">Kimi K3.1 的 LBNHC 缓存布局</h1>
@@ -69,13 +69,13 @@
 <p>本配置对齐后的本地 <code>block_size</code> 是 <strong>1536 token</strong>。一个历史 ID 在 DCP8 内合计覆盖 <code>1536 × 8 = 12,288</code> 个全局 token。长度中的 <code>1K = 1024 token</code>，容量中的 <code>1 MiB = 2²⁰ B</code>。页长的由来见<a href="#%E9%A1%B5%E9%95%BF%E4%B8%BA%E4%BB%80%E4%B9%88%E4%BB%8E-768-%E5%8F%98%E6%88%90-1536">第 5 节</a>。</p>
 <h2 id="3-lbnhc-保留各层独立的页序列">3. LBNHC 保留各层独立的页序列</h2>
 <p>L 是层，B 是块索引，N、H、C 分别表示页内 token、KV head 和通道。本节聚焦跨层的 L、B 顺序：本层的各个页排在一起，然后才进入下一层的区域；页内各分量的具体张量视图由后端实现（backend）确定。</p>
-<p>下图用两层、三个 ID 示意地址顺序，紫色标出同一个 ID 对应的页。</p>
-<p><img src="lbnhc-design/assets/lbnhc-addressing.png" alt="LBNHC 地址排列及本地管理页与算子页的关系" /></p>
+<p>下图用两层、三个 ID 示意地址顺序，蓝色描边标出同一个 ID 对应的页。</p>
+<p><img src="lbnhc-design/assets/lbnhc-addressing.png?v=e03c120b27f4" alt="LBNHC 地址排列及本地管理页与算子页的关系" /></p>
 <p><strong>同一个 ID 如何定位各层的页。</strong> 图的上半部分展示了各层独立的页序列。主 MLA、Indexer 和 draft 的页大小可以不同。某层页的起点等于 <code>本层起点 + ID × 本层页步长</code>。页步长就是本层相邻页起点的字节差，在这里等于本层页大小。</p>
 <p><strong>管理页如何映射成算子页。</strong> 图的下半部分展示了同一片内存的两种用法。分配器按本地 1536-token 管理页发放 ID，Attention 算子把同一片内存看成 12 个 128-token 算子页。后端只需在原内存上按指定形状和步长建立张量视图，各层就能沿用自己的页内格式。</p>
 <h3 id="算子如何找到本轮的页">算子如何找到本轮的页</h3>
 <p>初始化时，worker 按内存规划分配缓存并建立各层的<strong>张量视图</strong>。每轮推理再准备 <strong>metadata</strong>，告诉算子当前请求读哪些页、向哪些位置写入。</p>
-<p><img src="lbnhc-design/assets/lbnhc-runtime.png" alt="初始化准备缓存视图，每轮准备请求地址信息，两者在算子处汇合" /></p>
+<p><img src="lbnhc-design/assets/lbnhc-runtime.png?v=e03c120b27f4" alt="初始化准备缓存视图，每轮准备请求地址信息，两者在算子处汇合" /></p>
 <p>Attention 的本地管理 ID <code>h</code> 对应算子页 <code>12h … 12h+11</code>，跨卡地址由 DCP 后端映射。KDA 在单个连续的 MLA 页槽内，按页内偏移定位短卷积和 recurrent 状态。这个接口需要一个完整页槽，分属不同层区域的 MLA 页和 Indexer 页无法直接拼成一份状态。<a href="https://github.com/vllm-project/vllm-ascend/blob/faa43c37df0fc67e63ed9775cb86693c3735a389/vllm_ascend/attention/sfa_v1.py#L156">Attention 页视图</a> · <a href="https://github.com/vllm-project/vllm-ascend/blob/faa43c37df0fc67e63ed9775cb86693c3735a389/vllm_ascend/worker/v2/attn_utils.py#L1674">KDA 状态视图</a></p>
 <h2 id="4-每张卡需要多少历史和状态容量">4. 每张卡需要多少历史和状态容量</h2>
 <h3 id="一个历史-id-多大">一个历史 ID 多大</h3>
@@ -134,8 +134,8 @@ recurrent： 形状 (12, 128, 128)，FP32
 <h3 id="69-层-kda-怎么分组">69 层 KDA 怎么分组</h3>
 <p>一个 ID 有 24 个 MLA 页槽，因此 69 层 KDA 至少需要三个层组。实现按层顺序轮流分组，得到 <strong>23／23／23 层</strong>。每组的一套状态占一个 ID，第 24 个 MLA 槽空着。<a href="https://github.com/vllm-project/vllm-ascend/blob/faa43c37df0fc67e63ed9775cb86693c3735a389/vllm_ascend/models/kimi_k3/paired_sfa_cache.py#L169">整 ID 复用</a> · <a href="https://github.com/vllm-project/vllm-ascend/blob/faa43c37df0fc67e63ed9775cb86693c3735a389/vllm_ascend/models/kimi_k3/cache_config.py#L28">KDA 层分组</a></p>
 <p>下图每列对应一个 ID，三列 KDA 各画一套状态。最右列是全池保留的 null ID，用于空块占位。</p>
-<p><img src="lbnhc-design/assets/lbnhc-layout.png" alt="一个 ID 在各层对应的位置：历史、三个 KDA 层组与 null" /></p>
-<p>KDA 状态右侧的灰条是每槽 <strong>165,888 B（0.158 MiB）的 padding</strong>。它把状态补齐到 MLA 页大小，使下一份状态仍落在同样的页步长上。<a href="lbnhc-design/assets/lbnhc-layout.svg">查看借槽图原图</a></p>
+<p><img src="lbnhc-design/assets/lbnhc-layout.png?v=e03c120b27f4" alt="一个 ID 在各层对应的位置：历史、三个 KDA 层组与 null" /></p>
+<p>KDA 状态右侧的灰蓝色窄条是每槽 <strong>165,888 B（0.158 MiB）的 padding</strong>。它把状态补齐到 MLA 页大小，使下一份状态仍落在同样的页步长上。<a href="lbnhc-design/assets/lbnhc-layout.svg?v=e03c120b27f4">查看借槽图原图</a></p>
 <h3 id="平时占一页换页时临时占两页">平时占一页，换页时临时占两页</h3>
 <p><strong>平时每个 KDA 层组占 1 个基础 Block。</strong> <code>align</code> 模式每 1536 个全局 token 划一个状态区间。换页时，旧页提供输入、新页承接更新，才会临时同时占用 2 个 Block。<code>MambaSpec.max_memory_usage_bytes()</code> 的上限把这个临时块也算进去。</p>
 <p>RecoverSSM 根据验证通过的 token 恢复状态，本例的额外投机状态页和额外 prefill 快照页均为 0。三个层组常态共占 <strong>3 个 KDA ID</strong>，同步换页时共需 6 个。<a href="https://github.com/vllm-project/vllm/blob/4ba787ec9959e566d3b587a796dff07673324da5/vllm/v1/kv_cache_interface.py#L1135">状态页容量上限</a> · <a href="https://github.com/vllm-project/vllm/blob/4ba787ec9959e566d3b587a796dff07673324da5/vllm/model_executor/layers/mamba/abstract.py#L72">RecoverSSM 状态页配置</a></p>
@@ -182,7 +182,7 @@ recurrent： 形状 (12, 128, 128)，FP32
 <p><strong>常态按 542.109 MiB／卡核算。</strong> 若三个 KDA 层组都在换页边界，池中还需容纳 3 个临时 ID，总计 18 个 ID，为 682,131,456 B（650.531 MiB／卡）。两项都按预分配 KV 池的完整块计算，权重、工作区和 RecoverSSM 的验证记录另计。<a href="lbnhc-design/public/README.html#%E6%B1%A0%E5%A4%96%E9%AA%8C%E8%AF%81%E8%AE%B0%E5%BD%95">池外验证记录</a></p>
 <h3 id="为什么各卡的历史尾块不一样">为什么各卡的历史尾块不一样</h3>
 <p>DCP8 每 768 个 token 换一张卡。132,096 个 token 分成 172 段，轮转 21 圈后剩 4 段。因此组内 rank 0–3 各有 22 段，正好填满 11 个本地历史页；rank 4–7 各有 21 段，最后一页空出 768 个位置。</p>
-<p><img src="lbnhc-design/assets/lbnhc-capacity.png" alt="单请求常态核算的历史内容、KDA 状态与完整块容量" /></p>
+<p><img src="lbnhc-design/assets/lbnhc-capacity.png?v=e03c120b27f4" alt="单请求常态核算的历史内容、KDA 状态与完整块容量" /></p>
 <p>rank 4–7 比 rank 0–3 多出的 <strong>18.070 MiB／卡</strong> 空余来自历史尾块。两组卡的 KDA 页和 null 占用相同。<a href="lbnhc-design/public/capacity.json">逐 rank 字节账</a></p>
 <h3 id="请求组合变化时共享池解决什么问题">请求组合变化时，共享池解决什么问题</h3>
 <p>在同一配置下，再加入一条 11K 输入、1K 输出预算的短请求。它的 12,288 个 token 恰好只需一个历史 ID，KDA 常态仍用 3 个 ID。全池唯一的 null 单独保留。</p>
@@ -211,7 +211,7 @@ recurrent： 形状 (12, 128, 128)，FP32
 </tbody>
 </table></div>
 <p>按一长一短的常态需求划定固定配额，历史分 12 个 ID，状态分 6 个。再用同样的 18 个可用 ID 核算三条短请求。</p>
-<p><img src="lbnhc-design/assets/lbnhc-pool-sharing.png" alt="相同 18 个可用 ID 下固定配额与共享池的常态占用" /></p>
+<p><img src="lbnhc-design/assets/lbnhc-pool-sharing.png?v=e03c120b27f4" alt="相同 18 个可用 ID 下固定配额与共享池的常态占用" /></p>
 <p><strong>固定配额下第三条短请求缺状态页，共享池按常态合计只需 12 个 ID。</strong> 此处按请求历史彼此独立计算，遇到换页边界还需计入临时 ID。</p>
 <hr />
 <p>本文算例可用随文脚本离线复算，参数和运行方法见<a href="lbnhc-design/public/README.html">计算附件</a>。</p>

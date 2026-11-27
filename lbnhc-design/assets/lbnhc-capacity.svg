@@ -1,22 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="700" viewBox="0 0 1920 700"><rect width="1920" height="700" fill="#f7f9fc"/>
-<text x="64" y="54" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="22" font-weight="400" fill="#52647b">KIMI K3.1  /  LBNHC DESIGN</text>
-<text x="64" y="128" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="43" font-weight="700" fill="#14233b">128K 输入 + 1K 输出预算的常态容量</text>
-<text x="64" y="178" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="25" font-weight="400" fill="#52647b">每个 KDA 层组平时占 1 个 Block。图中按每卡核算，含全池唯一的 null。</text>
-<line x1="64" y1="202" x2="1856" y2="202" stroke="#d8e0eb" stroke-width="2"/>
-<text x="64" y="273" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="34" font-weight="700" fill="#14233b">DCP rank 0–3</text>
-<rect x="64" y="312" width="504.699609375" height="58" fill="#dceaff"/>
-<text x="79" y="348" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="24" font-weight="400" fill="#14233b">历史内容＋KDA 状态  452.936 MiB</text>
-<rect x="64" y="394" width="604.0647321428571" height="58" fill="#e8edf4"/>
-<text x="79" y="430" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="24" font-weight="400" fill="#14233b">常态完整块预算  542.109 MiB</text>
-<text x="64" y="516" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="31" font-weight="700" fill="#2563b8">额外预留  89.174 MiB</text>
-<text x="64" y="563" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="24" font-weight="400" fill="#52647b">占本图块预算 16.45%；历史尾块空余 0.000 MiB</text>
-<text x="1000" y="273" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="34" font-weight="700" fill="#14233b">DCP rank 4–7</text>
-<rect x="1000" y="312" width="484.56411830357143" height="58" fill="#dceaff"/>
-<text x="1015" y="348" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="24" font-weight="400" fill="#14233b">历史内容＋KDA 状态  434.865 MiB</text>
-<rect x="1000" y="394" width="604.0647321428571" height="58" fill="#e8edf4"/>
-<text x="1015" y="430" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="24" font-weight="400" fill="#14233b">常态完整块预算  542.109 MiB</text>
-<text x="1000" y="516" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="31" font-weight="700" fill="#2563b8">额外预留  107.244 MiB</text>
-<text x="1000" y="563" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="24" font-weight="400" fill="#52647b">占本图块预算 19.78%；历史尾块空余 18.070 MiB</text>
-<line x1="64" y1="615" x2="1856" y2="615" stroke="#d8e0eb" stroke-width="2"/>
-<text x="64" y="650" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="21" font-weight="400" fill="#52647b">常态 11 历史 ID + 3 KDA ID + 1 null = 15 ID。三组同时换页时增加 3 个 ID，共 650.531 MiB／卡。</text>
-<text x="64" y="683" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="20" font-weight="400" fill="#52647b">算例：DP4TP8DCP8 / DSpark3，5 层 draft、推测 3 token。参考实现：Ascend faa43c37 / vLLM 4ba787ec。</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="700" viewBox="0 0 1920 700"><rect width="1920" height="700" fill="#111b2b"/>
+<text x="64" y="54" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="22" font-weight="400" fill="#a8b8cc">KIMI K3.1  /  LBNHC DESIGN</text>
+<text x="64" y="128" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="43" font-weight="700" fill="#eef5ff">128K 输入 + 1K 输出预算的常态容量</text>
+<text x="64" y="178" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="25" font-weight="400" fill="#a8b8cc">每个 KDA 层组平时占 1 个 Block。图中按每卡核算，含全池唯一的 null。</text>
+<line x1="64" y1="202" x2="1856" y2="202" stroke="#26364c" stroke-width="2"/>
+<text x="64" y="273" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="34" font-weight="700" fill="#eef5ff">DCP rank 0–3</text>
+<rect x="64" y="312" width="504.699609375" height="58" fill="#1b405a"/>
+<text x="79" y="348" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="24" font-weight="400" fill="#eef5ff">历史内容＋KDA 状态  452.936 MiB</text>
+<rect x="64" y="394" width="604.0647321428571" height="58" fill="#1c2a3e"/>
+<text x="79" y="430" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="24" font-weight="400" fill="#eef5ff">常态完整块预算  542.109 MiB</text>
+<text x="64" y="516" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="31" font-weight="700" fill="#79d8fa">额外预留  89.174 MiB</text>
+<text x="64" y="563" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="24" font-weight="400" fill="#a8b8cc">占本图块预算 16.45%；历史尾块空余 0.000 MiB</text>
+<text x="1000" y="273" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="34" font-weight="700" fill="#eef5ff">DCP rank 4–7</text>
+<rect x="1000" y="312" width="484.56411830357143" height="58" fill="#1b405a"/>
+<text x="1015" y="348" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="24" font-weight="400" fill="#eef5ff">历史内容＋KDA 状态  434.865 MiB</text>
+<rect x="1000" y="394" width="604.0647321428571" height="58" fill="#1c2a3e"/>
+<text x="1015" y="430" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="24" font-weight="400" fill="#eef5ff">常态完整块预算  542.109 MiB</text>
+<text x="1000" y="516" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="31" font-weight="700" fill="#79d8fa">额外预留  107.244 MiB</text>
+<text x="1000" y="563" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="24" font-weight="400" fill="#a8b8cc">占本图块预算 19.78%；历史尾块空余 18.070 MiB</text>
+<line x1="64" y1="615" x2="1856" y2="615" stroke="#26364c" stroke-width="2"/>
+<text x="64" y="650" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="21" font-weight="400" fill="#a8b8cc">常态 11 历史 ID + 3 KDA ID + 1 null = 15 ID。三组同时换页时增加 3 个 ID，共 650.531 MiB／卡。</text>
+<text x="64" y="683" text-anchor="start" font-family="Microsoft YaHei, sans-serif" font-size="20" font-weight="400" fill="#a8b8cc">算例：DP4TP8DCP8 / DSpark3，5 层 draft、推测 3 token。参考实现：Ascend faa43c37 / vLLM 4ba787ec。</text></svg>
